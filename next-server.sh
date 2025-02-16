@@ -42,6 +42,8 @@ function show_menu() {
     echo "----------------------------"
     echo -e "${GREEN}8${NC}. 节点对接"
     echo -e "${GREEN}9${NC}. DNS解锁"
+    echo "----------------------------"
+    echo -e "${GREEN}0${NC}. 退出脚本"
 }
 
 function download_and_install() {
@@ -55,22 +57,22 @@ function download_and_install() {
     echo -e "正在创建安装目录..."
     mkdir -p "$INSTALL_DIR"
 
-    FILES=("config.yml" "custom_inbound.json" "custom_outbound.json" "dns.json" "geoip.dat" "geosite.dat" "LICENSE" "next-server" "README.md" "route.json" "rulelist")
+    CONFIG_FILES=("config.yml" "custom_outbound.json" "dns.json" "route.json")
+    MISSING_FILES=()
 
-    ALL_EXIST=true
-    for file in "${FILES[@]}"; do
-        if [ ! -f "$INSTALL_DIR/$file" ]; then
-            ALL_EXIST=false
-            break
+    # 检查哪些配置文件缺失
+    for file in "${CONFIG_FILES[@]}"; do
+        if [ ! -e "$INSTALL_DIR/$file" ]; then
+            MISSING_FILES+=("$file")
         fi
     done
 
-    if [ "$ALL_EXIST" = true ]; then
-        echo -e "所有文件已存在，仅替换 next-server 文件..."
+    if [ "${#MISSING_FILES[@]}" -eq 0 ]; then
+        echo -e "所有配置文件已存在，仅替换 next-server 文件..."
         unzip -o /tmp/next-server.zip next-server -d "$INSTALL_DIR"
     else
-        echo -e "部分文件不存在，解压所有文件..."
-        unzip -o /tmp/next-server.zip -d "$INSTALL_DIR"
+        echo -e "部分配置文件缺失，替换 next-server 并补充缺失的文件..."
+        unzip -o /tmp/next-server.zip next-server "${MISSING_FILES[@]}" -d "$INSTALL_DIR"
     fi
 
     if [ -f "$SERVICE_FILE" ]; then
@@ -166,7 +168,7 @@ function open_dns() {
 
 while true; do
     show_menu
-    read -p "请输入你的选择 [1-9]: " choice
+    read -p "请输入你的选择 [0-9]: " choice
     case $choice in
         1)
             download_and_install
@@ -195,8 +197,12 @@ while true; do
         9)
             open_dns
             ;;
+        0)
+            echo -e "${GREEN}退出脚本...${NC}"
+            exit 0
+            ;;
         *)
-            echo -e "${YELLOW}无效的选择，请输入 1 到 9 之间的数字。${NC}"
+            echo -e "${YELLOW}无效的选择，请输入 0 到 9 之间的数字。${NC}"
             ;;
     esac
 
