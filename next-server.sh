@@ -57,7 +57,7 @@ function download_and_install() {
     echo -e "正在创建安装目录..."
     mkdir -p "$INSTALL_DIR"
 
-    CONFIG_FILES=("config.yml" "custom_outbound.json" "dns.json" "route.json")
+    CONFIG_FILES=("config.yml" "custom_inbound.json" "custom_outbound.json" "dns.json" "geoip.dat" "geosite.dat" "next-server" "route.json" "rulelist")
     MISSING_FILES=()
 
     # 检查哪些配置文件缺失
