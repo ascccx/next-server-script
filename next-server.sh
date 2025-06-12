@@ -40,8 +40,7 @@ function show_menu() {
     echo -e "${GREEN}6${NC}. 查看 NeXT-Server 日志"
     echo -e "${GREEN}7${NC}. 查看 NeXT-Server 状态"
     echo "----------------------------"
-    echo -e "${GREEN}8${NC}. 节点对接"
-    echo -e "${GREEN}9${NC}. DNS解锁"
+    echo -e "${GREEN}8${NC}. 生成自签证书"
     echo "----------------------------"
     echo -e "${GREEN}0${NC}. 退出脚本"
 }
@@ -60,7 +59,6 @@ function download_and_install() {
     CONFIG_FILES=("config.yml" "custom_inbound.json" "custom_outbound.json" "dns.json" "geoip.dat" "geosite.dat" "next-server" "route.json" "rulelist")
     MISSING_FILES=()
 
-    # 检查哪些配置文件缺失
     for file in "${CONFIG_FILES[@]}"; do
         if [ ! -e "$INSTALL_DIR/$file" ]; then
             MISSING_FILES+=("$file")
@@ -156,19 +154,20 @@ function uninstall() {
     fi
 }
 
-function open_config() {
-    echo -e "${YELLOW}正在打开节点对接配置文件...${NC}"
-    sudo nano /etc/next-server/config.yml
-}
-
-function open_dns() {
-    echo -e "${YELLOW}正在打开DNS解锁配置文件...${NC}"
-    sudo nano /etc/next-server/dns.json
+function generate_self_signed_cert() {
+    echo -e "${YELLOW}正在生成自签证书...${NC}"
+    sudo apt install openssl -y
+    sudo mkdir -p /etc/next-server/cert
+    sudo openssl req -x509 -nodes -days 365 \
+        -newkey rsa:2048 \
+        -keyout /etc/next-server/cert/selfsigned.key \
+        -out /etc/next-server/cert/selfsigned.crt
+    echo -e "${GREEN}自签证书已生成：/etc/next-server/cert/selfsigned.crt${NC}"
 }
 
 while true; do
     show_menu
-    read -p "请输入你的选择 [0-9]: " choice
+    read -p "请输入你的选择 [0-8]: " choice
     case $choice in
         1)
             download_and_install
@@ -192,21 +191,17 @@ while true; do
             check_status
             ;;
         8)
-            open_config
-            ;;
-        9)
-            open_dns
+            generate_self_signed_cert
             ;;
         0)
             echo -e "${GREEN}退出脚本...${NC}"
             exit 0
             ;;
         *)
-            echo -e "${YELLOW}无效的选择，请输入 0 到 9 之间的数字。${NC}"
+            echo -e "${YELLOW}无效的选择，请输入 0 到 8 之间的数字。${NC}"
             ;;
     esac
 
-    # 询问用户是否继续
     read -n 1 -s -r -p "按任意键继续..."
     echo ""
 done
