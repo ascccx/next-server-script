@@ -12,7 +12,7 @@ SCRIPT_PATH="$(realpath "$0")"
 
 # 要添加的别名
 ALIAS_NAME="g"
-ALIAS_CMD="'$SCRIPT_PATH'"   # 注意这里的引号是整个包起来！
+ALIAS_CMD="'$SCRIPT_PATH'"
 
 # 检查并添加别名到 ~/.bashrc
 if ! grep -q "alias $ALIAS_NAME=" ~/.bashrc; then
@@ -270,7 +270,7 @@ function read_s_port() {
 function read_d_ip() {
   if [ "$flag_a" == "ss" ]; then
     echo -e "------------------------------------------------------------------"
-    echo -e "请问您要设置的ss加密(仅提供常用的几种): "
+    echo -e "请选择您要设置的ss加密"
     echo -e "-----------------------------------"
     echo -e "[1] aes-256-gcm"
     echo -e "[2] aes-256-cfb"
@@ -352,7 +352,7 @@ function read_d_ip() {
     echo -e "------------------------------------------------------------------"
     echo -e "请问你要将本机从${flag_b}接收到的流量转发向哪个IP或域名?"
     echo -e "注: IP既可以是[远程机器/当前机器]的公网IP, 也可是以本机本地回环IP(即127.0.0.1)"
-    echo -e "具体IP地址的填写, 取决于接收该流量的服务正在监听的IP(详见: https://github.com/KANIKIG/Multi-EasyGost)"
+    echo -e "具体IP地址的填写, 取决于接收该流量的服务正在监听的IP"
     if [[ ${is_cert} == [Yy] ]]; then
       echo -e "注意: 落地机开启自定义tls证书，务必填写${Red_font_prefix}域名${Font_color_suffix}"
     fi
@@ -474,13 +474,11 @@ function encrypt() {
 function enpeer() {
   echo -e "请问您要设置的均衡负载传输类型: "
   echo -e "-----------------------------------"
-  echo -e "[1] 不加密转发"
+  echo -e "[1] 无加密转发"
   echo -e "[2] tls隧道"
   echo -e "[3] ws隧道"
   echo -e "[4] wss隧道"
   echo -e "注意: 同一则转发，中转与落地传输类型必须对应！本脚本默认同一配置的传输类型相同"
-  echo -e "此脚本仅支持简单型均衡负载，具体可参考官方文档"
-  echo -e "gost均衡负载官方文档：https://docs.ginuerzh.xyz/gost/load-balancing"
   echo -e "-----------------------------------"
   read -p "请选择转发传输类型: " numpeer
 
@@ -501,7 +499,7 @@ function enpeer() {
 function cdn() {
   echo -e "请问您要设置的CDN传输类型: "
   echo -e "-----------------------------------"
-  echo -e "[1] 不加密转发"
+  echo -e "[1] 无加密转发"
   echo -e "[2] ws隧道"
   echo -e "[3] wss隧道"
   echo -e "注意: 同一则转发，中转与落地传输类型必须对应！"
@@ -900,20 +898,20 @@ cron_restart() {
     echo -e "------------------------------------------------------------------"
     echo -e "gost定时重启任务类型: "
     echo -e "-----------------------------------"
-    echo -e "[1] 每？小时重启"
-    echo -e "[2] 每日？点重启"
+    echo -e "[1] 每小时重启"
+    echo -e "[2] 每天重启"
     echo -e "-----------------------------------"
     read -p "请选择: " numcrontype
     if [ "$numcrontype" == "1" ]; then
       echo -e "-----------------------------------"
-      read -p "每？小时重启: " cronhr
+      read -p "输入重启周期（小时）" cronhr
       echo "0 0 */$cronhr * * ? * systemctl restart gost" >>/etc/crontab
-      echo -e "定时重启设置成功！"
+      echo -e "定时重启设置成功"
     elif [ "$numcrontype" == "2" ]; then
       echo -e "-----------------------------------"
-      read -p "每日？点重启: " cronhr
+      read -p "输入重启周期（每天）" cronhr
       echo "0 0 $cronhr * * ? systemctl restart gost" >>/etc/crontab
-      echo -e "定时重启设置成功！"
+      echo -e "定时重启设置成功"
     else
       echo "type error, please try again"
       exit
@@ -931,25 +929,26 @@ echo && echo -e "         ${Green_font_prefix}gost 一键安装配置脚本${Fon
       ---------------------------
   特性: (1)使用 systemd 和配置文件管理 gost 
         (2)支持多条转发规则同时生效 
-        (3)开机自启 重启后自动恢复 
-  功能: (1)TCP/UDP 无加密转发  (2)中转机加密传输  (3)落地机解密转发
+        (3)开机自启并自动恢复转发
+        (4)支持定时重启释放资源提升稳定性 
+  功能: (1)TCP+UDP 无加密转发  (2)中转机加密传输  (3)落地机解密转发
       ---------------------------
  ${Green_font_prefix}1.${Font_color_suffix} 安装 gost 
  ${Green_font_prefix}2.${Font_color_suffix} 卸载 gost 
-———————————— 
+------------ 
  ${Green_font_prefix}3.${Font_color_suffix} 启动 gost 
  ${Green_font_prefix}4.${Font_color_suffix} 停止 gost 
  ${Green_font_prefix}5.${Font_color_suffix} 重启 gost 
-———————————— 
+------------ 
  ${Green_font_prefix}6.${Font_color_suffix} 查看gost状态 
-———————————— 
+------------ 
  ${Green_font_prefix}7.${Font_color_suffix} 新增gost转发配置 
  ${Green_font_prefix}8.${Font_color_suffix} 查看现有gost配置 
  ${Green_font_prefix}9.${Font_color_suffix} 删除一则gost配置 
-———————————— 
+------------ 
  ${Green_font_prefix}10.${Font_color_suffix} gost定时重启配置 
- ${Green_font_prefix}11.${Font_color_suffix} 自定义TLS证书配置 
-————————————" && echo 
+ ${Green_font_prefix}11.${Font_color_suffix} 自定义tls证书配置 
+------------" && echo 
 
 while true; do
   read -e -p " 请输入数字 [1-11]:" num
