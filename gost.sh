@@ -3,25 +3,26 @@ Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_p
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
 Error="${Red_font_prefix}[错误]${Font_color_suffix}"
 shell_version="1.1.1"
-ct_new_ver="2.11.2" # 2.x 不再跟随官方更新
+ct_new_ver="2.11.2" # 2.x 版本
 gost_conf_path="/etc/gost/config.json"
 raw_conf_path="/etc/gost/rawconf"
-function checknew() {
-  checknew=$(gost -V 2>&1 | awk '{print $2}')
-  # check_new_ver
-  echo "你的gost版本为:""$checknew"""
-  echo -n 是否更新\(y/n\)\:
-  read checknewnum
-  if test $checknewnum = "y"; then
-    cp -r /etc/gost /tmp/
-    Install_ct
-    rm -rf /etc/gost
-    mv /tmp/gost /etc/
-    systemctl restart gost
-  else
-    exit 0
-  fi
-}
+
+# 脚本路径（自动获取）
+SCRIPT_PATH="$(realpath "$0")"
+
+# 要添加的别名
+ALIAS_NAME="g"
+ALIAS_CMD="'$SCRIPT_PATH'"   # 注意这里的引号是整个包起来！
+
+# 检查并添加别名到 ~/.bashrc
+if ! grep -q "alias $ALIAS_NAME=" ~/.bashrc; then
+    echo "alias $ALIAS_NAME=$ALIAS_CMD" >> ~/.bashrc
+    echo "已添加别名：$ALIAS_NAME → $SCRIPT_PATH"
+    echo "请运行 'source ~/.bashrc' 或重新打开终端以生效"
+else
+    echo "别名 '$ALIAS_NAME' 已存在，跳过添加"
+fi
+
 function check_sys() {
   if [[ -f /etc/redhat-release ]]; then
     release="centos"
@@ -61,16 +62,6 @@ function Installation_dependency() {
 function check_root() {
   [[ $EUID != 0 ]] && echo -e "${Error} 当前非ROOT账号(或没有ROOT权限)，无法继续操作，请更换ROOT账号或使用 ${Green_background_prefix}sudo su${Font_color_suffix} 命令获取临时ROOT权限（执行后可能会提示输入当前账号的密码）。" && exit 1
 }
-function check_new_ver() {
-  # deprecated
-  ct_new_ver=$(wget --no-check-certificate -qO- -t2 -T3 https://api.github.com/repos/ginuerzh/gost/releases/latest | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g;s/v//g')
-  if [[ -z ${ct_new_ver} ]]; then
-    ct_new_ver="2.11.2"
-    echo -e "${Error} gost 最新版本获取失败，正在下载v${ct_new_ver}版"
-  else
-    echo -e "${Info} gost 目前最新版本为 ${ct_new_ver}"
-  fi
-}
 function check_file() {
   if test ! -d "/usr/lib/systemd/system/"; then
     mkdir /usr/lib/systemd/system
@@ -91,7 +82,6 @@ function Install_ct() {
   Installation_dependency
   check_file
   check_sys
-  # check_new_ver
   echo -e "若为国内机器建议使用大陆镜像加速下载"
   read -e -p "是否使用？[y/n]:" addyn
   [[ -z ${addyn} ]] && addyn="n"
@@ -153,6 +143,72 @@ function Restart_ct() {
   systemctl restart gost
   echo "已重读配置并重启"
 }
+
+# 添加查看gost状态的函数
+function Status_ct() {
+  echo -e "${Info} 正在获取 gost 状态信息..."
+  echo -e "--------------------------------------------------------"
+  
+  # 检查gost服务状态
+  if systemctl is-active gost >/dev/null 2>&1; then
+    echo -e "${Green_font_prefix}[运行状态]${Font_color_suffix} gost 服务正在运行"
+  else
+    echo -e "${Red_font_prefix}[运行状态]${Font_color_suffix} gost 服务未运行"
+  fi
+  
+  # 检查是否开机自启
+  if systemctl is-enabled gost >/dev/null 2>&1; then
+    echo -e "${Green_font_prefix}[开机自启]${Font_color_suffix} 已启用"
+  else
+    echo -e "${Red_font_prefix}[开机自启]${Font_color_suffix} 未启用"
+  fi
+  
+  # 显示详细状态
+  echo -e "--------------------------------------------------------"
+  echo -e "${Green_font_prefix}[详细状态]${Font_color_suffix}"
+  systemctl status gost --no-pager -l
+  
+  echo -e "--------------------------------------------------------"
+  echo -e "${Green_font_prefix}[进程信息]${Font_color_suffix}"
+  if pgrep -f gost >/dev/null; then
+    ps aux | grep gost | grep -v grep
+  else
+    echo -e "${Red_font_prefix}未找到 gost 进程${Font_color_suffix}"
+  fi
+  
+  echo -e "--------------------------------------------------------"
+  echo -e "${Green_font_prefix}[端口监听]${Font_color_suffix}"
+  if command -v ss >/dev/null 2>&1; then
+    ss -tlnp | grep gost
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -tlnp | grep gost
+  else
+    echo -e "${Red_font_prefix}未找到 ss 或 netstat 命令${Font_color_suffix}"
+  fi
+  
+  echo -e "--------------------------------------------------------"
+  echo -e "${Green_font_prefix}[配置文件]${Font_color_suffix}"
+  if [ -f "$gost_conf_path" ]; then
+    echo -e "配置文件路径: $gost_conf_path"
+    echo -e "配置文件大小: $(du -h $gost_conf_path | cut -f1)"
+    echo -e "最后修改时间: $(stat -c %y $gost_conf_path)"
+  else
+    echo -e "${Red_font_prefix}配置文件不存在: $gost_conf_path${Font_color_suffix}"
+  fi
+  
+  if [ -f "$raw_conf_path" ]; then
+    echo -e "原始配置文件: $raw_conf_path"
+    echo -e "配置条目数量: $(wc -l < $raw_conf_path 2>/dev/null || echo '0')"
+  else
+    echo -e "${Red_font_prefix}原始配置文件不存在: $raw_conf_path${Font_color_suffix}"
+  fi
+  
+  echo -e "--------------------------------------------------------"
+  echo -e "${Green_font_prefix}[日志信息]${Font_color_suffix}"
+  echo -e "最近10条日志:"
+  journalctl -u gost --no-pager -n 10 --since "1 hour ago" || echo -e "${Red_font_prefix}无法获取日志信息${Font_color_suffix}"
+}
+
 function read_protocol() {
   echo -e "请问您要设置哪种功能: "
   echo -e "-----------------------------------"
@@ -871,44 +927,21 @@ cron_restart() {
   fi
 }
 
-update_sh() {
-  ol_version=$(curl -L -s --connect-timeout 5 https://raw.githubusercontent.com/KANIKIG/Multi-EasyGost/master/gost.sh | grep "shell_version=" | head -1 | awk -F '=|"' '{print $3}')
-  if [ -n "$ol_version" ]; then
-    if [[ "$shell_version" != "$ol_version" ]]; then
-      echo -e "存在新版本，是否更新 [Y/N]?"
-      read -r update_confirm
-      case $update_confirm in
-      [yY][eE][sS] | [yY])
-        wget -N --no-check-certificate https://raw.githubusercontent.com/KANIKIG/Multi-EasyGost/master/gost.sh
-        echo -e "更新完成"
-        exit 0
-        ;;
-      *) ;;
-
-      esac
-    else
-      echo -e "                 ${Green_font_prefix}当前版本为最新版本！${Font_color_suffix}"
-    fi
-  else
-    echo -e "                 ${Red_font_prefix}脚本最新版本获取失败，请检查与github的连接！${Font_color_suffix}"
-  fi
-}
-update_sh
-echo && echo -e "                 gost 一键安装配置脚本"${Red_font_prefix}[${shell_version}]${Font_color_suffix}"
-  ----------- KANIKIG ----------- 
-  特性: (1)本脚本采用systemd及gost配置文件对gost进行管理 
-        (2)能够在不借助其他工具(如screen)的情况下实现多条转发规则同时生效 
-        (3)机器reboot后转发不失效 
-  功能: (1)tcp+udp不加密转发, (2)中转机加密转发, (3)落地机解密对接转发 
-  帮助文档：https://github.com/KANIKIG/Multi-EasyGost 
-
+echo && echo -e "         ${Green_font_prefix}gost 一键安装配置脚本${Font_color_suffix} 
+      ---------------------------
+  特性: (1)使用 systemd 和配置文件管理 gost 
+        (2)支持多条转发规则同时生效 
+        (3)开机自启 重启后自动恢复 
+  功能: (1)TCP/UDP 无加密转发  (2)中转机加密传输  (3)落地机解密转发
+      ---------------------------
  ${Green_font_prefix}1.${Font_color_suffix} 安装 gost 
- ${Green_font_prefix}2.${Font_color_suffix} 更新 gost 
- ${Green_font_prefix}3.${Font_color_suffix} 卸载 gost 
+ ${Green_font_prefix}2.${Font_color_suffix} 卸载 gost 
 ———————————— 
- ${Green_font_prefix}4.${Font_color_suffix} 启动 gost 
- ${Green_font_prefix}5.${Font_color_suffix} 停止 gost 
- ${Green_font_prefix}6.${Font_color_suffix} 重启 gost 
+ ${Green_font_prefix}3.${Font_color_suffix} 启动 gost 
+ ${Green_font_prefix}4.${Font_color_suffix} 停止 gost 
+ ${Green_font_prefix}5.${Font_color_suffix} 重启 gost 
+———————————— 
+ ${Green_font_prefix}6.${Font_color_suffix} 查看gost状态 
 ———————————— 
  ${Green_font_prefix}7.${Font_color_suffix} 新增gost转发配置 
  ${Green_font_prefix}8.${Font_color_suffix} 查看现有gost配置 
@@ -928,16 +961,16 @@ while true; do
     checknew
     ;;
   3)
-    Uninstall_ct
-    ;;
-  4)
     Start_ct
     ;;
-  5)
+  4)
     Stop_ct
     ;;
-  6)
+  5)
     Restart_ct
+    ;;
+  6)
+    Status_ct
     ;;
   7)
     rawconf
