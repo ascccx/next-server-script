@@ -30,7 +30,8 @@ CONFIG_FILE="$INSTALL_DIR/config.yml"
 ROUTE_FILE="$INSTALL_DIR/route.json"
 
 function show_menu() {
-    echo -e "${BLUE}NeXT-Server 一键脚本${NC}"
+    echo ""
+    echo -e "${GREEN}NeXT-Server 一键脚本${NC}"
     echo ""
     echo "请选择要执行的操作："
     echo -e "${GREEN}1${NC}. 安装 NeXT-Server"
