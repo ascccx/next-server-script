@@ -205,8 +205,8 @@ function Status_ct() {
   
   echo -e "--------------------------------------------------------"
   echo -e "${Green_font_prefix}[日志信息]${Font_color_suffix}"
-  echo -e "最近10条日志:"
-  journalctl -u gost --no-pager -n 10 --since "1 hour ago" || echo -e "${Red_font_prefix}无法获取日志信息${Font_color_suffix}"
+  echo -e "实时日志:"
+  journalctl -u gost -f --no-pager  || echo -e "${Red_font_prefix}无法获取日志信息${Font_color_suffix}"
 }
 
 function read_protocol() {
@@ -926,29 +926,29 @@ cron_restart() {
 }
 
 echo && echo -e "         ${Green_font_prefix}gost 一键安装配置脚本${Font_color_suffix} 
-      ---------------------------
+          ------------ 
   特性: (1)使用 systemd 和配置文件管理 gost 
         (2)支持多条转发规则同时生效 
         (3)开机自启并自动恢复转发
         (4)支持定时重启释放资源提升稳定性 
   功能: (1)TCP+UDP 无加密转发  (2)中转机加密传输  (3)落地机解密转发
-      ---------------------------
+          ------------ 
  ${Green_font_prefix}1.${Font_color_suffix} 安装 gost 
  ${Green_font_prefix}2.${Font_color_suffix} 卸载 gost 
------------- 
+    ------------ 
  ${Green_font_prefix}3.${Font_color_suffix} 启动 gost 
  ${Green_font_prefix}4.${Font_color_suffix} 停止 gost 
  ${Green_font_prefix}5.${Font_color_suffix} 重启 gost 
------------- 
+    ------------ 
  ${Green_font_prefix}6.${Font_color_suffix} 查看gost状态 
------------- 
+    ------------ 
  ${Green_font_prefix}7.${Font_color_suffix} 新增gost转发配置 
  ${Green_font_prefix}8.${Font_color_suffix} 查看现有gost配置 
  ${Green_font_prefix}9.${Font_color_suffix} 删除一则gost配置 
------------- 
+    ------------ 
  ${Green_font_prefix}10.${Font_color_suffix} gost定时重启配置 
  ${Green_font_prefix}11.${Font_color_suffix} 自定义tls证书配置 
-------------" && echo 
+    ------------" && echo 
 
 while true; do
   read -e -p " 请输入数字 [1-11]:" num
