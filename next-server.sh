@@ -45,8 +45,9 @@ function show_menu() {
     echo -e "${GREEN}7${NC}. 查看状态"
     echo "----------------------------"
     echo -e "${GREEN}8${NC}. 生成自签证书"
-    echo -e "${GREEN}9${NC}. 生成节点配置"
-    echo -e "${GREEN}10${NC}. 生成路由规则"
+    # ############### 已修改 부분 ###############
+    echo -e "${GREEN}9${NC}. 生成路由规则"
+    echo -e "${GREEN}10${NC}. 生成节点配置"
     echo -e "${GREEN}11${NC}. 生成DNS解锁配置"
     echo "----------------------------"
     echo -e "${GREEN}0${NC}. 退出脚本"
@@ -180,7 +181,6 @@ function generate_node_config() {
         return 1
     fi
 
-    local first_panel_type=""
     local first_api_host=""
     local first_api_key=""
 
@@ -189,16 +189,10 @@ function generate_node_config() {
     while true; do
         echo -e "${YELLOW}请输入节点配置信息：${NC}"
 
-        if [ -z "$first_panel_type" ]; then
-            echo "支持的面板类型："
-            echo "  1. sspanel-old"
-            echo "  2. nextpanel-v1"
-            read -p "选择面板类型 [1-2，默认1]: " panel_choice
-            case $panel_choice in
-                2) panel_type="nextpanel-v1" ;;
-                *) panel_type="sspanel-old" ;;
-            esac
+        # 面板类型默认为 sspanel-old，不再需要用户选择
+        local panel_type="sspanel-old"
 
+        if [ -z "$first_api_host" ]; then
             read -p "面板地址 (ApiHost): " api_host
             if [[ -z "$api_host" ]]; then
                 echo -e "${RED}错误：面板地址不能为空${NC}"
@@ -212,31 +206,30 @@ function generate_node_config() {
             fi
 
             # 保存第一个节点的公共配置
-            first_panel_type=$panel_type
             first_api_host=$api_host
             first_api_key=$api_key
         else
-            echo -e "${GREEN}使用第一个节点的面板类型和 API 信息：${first_panel_type}, ${first_api_host}, ${first_api_key}${NC}"
-            panel_type=$first_panel_type
+            echo -e "${GREEN}使用第一个节点的 API 信息：${first_api_host}, ${first_api_key}${NC}"
             api_host=$first_api_host
             api_key=$first_api_key
         fi
-
+        
         read -p "节点ID (NodeID): " node_id
         if [[ -z "$node_id" ]]; then
             echo -e "${RED}错误：节点ID不能为空${NC}"
             continue
         fi
 
+        # 调整节点类型菜单和默认值
         echo "支持的节点类型："
-        echo "  1. vmess"
+        echo "  1. shadowsocks2022"
         echo "  2. trojan"
-        echo "  3. shadowsocks2022"
-        read -p "选择节点类型 [1-3，默认2]: " node_choice
+        echo "  3. vmess"
+        read -p "选择节点类型 [1-3，默认1]: " node_choice
         case $node_choice in
-            1) node_type="vmess" ;;
-            3) node_type="shadowsocks2022" ;;
-            *) node_type="trojan" ;;
+            2) node_type="trojan" ;;
+            3) node_type="vmess" ;;
+            *) node_type="shadowsocks2022" ;;
         esac
 
         node_yaml=$(cat <<EOF
@@ -803,21 +796,22 @@ while true; do
         8)
             generate_self_signed_cert
             ;;
+        # ############### 已修改 부분 ###############
         9)
-            generate_node_config
+            generate_route_rules
             ;;
         10)
-            generate_route_rules
+            generate_node_config
             ;; 
         11)
             generate_dns_unlock_config
-            ;;     
+            ;;      
         0)
             echo -e "${GREEN}退出脚本...${NC}"
             exit 0
             ;;
         *)
-            echo -e "${YELLOW}无效的选择，请输入 0 到 10 之间的数字。${NC}"
+            echo -e "${YELLOW}无效的选择，请输入 0 到 11 之间的数字。${NC}"
             ;;
     esac
 
