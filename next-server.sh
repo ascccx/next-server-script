@@ -88,17 +88,22 @@ function download_and_install() {
         echo -e "正在创建 systemd 服务文件..."
         cat <<EOF | sudo tee "$SERVICE_FILE" > /dev/null
 [Unit]
-Description=NeXT Server
-After=network.target
+Description=NeXT Server Service
+After=network.target nss-lookup.target
+Wants=network.target
 
 [Service]
-Type=simple
-ExecStart=/etc/next-server/next-server
-RestartSec=5s
-Restart=on-failure
 User=root
 Group=root
-WorkingDirectory=/etc/next-server
+Type=simple
+LimitAS=infinity
+LimitRSS=infinity
+LimitCORE=infinity
+LimitNOFILE=999999
+WorkingDirectory=/etc/next-server/
+ExecStart=/etc/next-server/next-server --config /etc/next-server/config.yml
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
