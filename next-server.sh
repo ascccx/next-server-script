@@ -646,7 +646,9 @@ function generate_route_rules() {
         "zhengwunet.org",
         "zhihu.com",
         "zhuichaguoji.org",
-        "zijieapi.com"
+        "zijieapi.com",
+        "ios.prod.cloud.netflix.com",
+        "ios.ngp.prod.cloud.netflix.com"
       ]
     },
     {
