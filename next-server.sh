@@ -290,7 +290,7 @@ EOF
 
     cat <<EOF > "$CONFIG_FILE"
 Log:
-  Level: warning # Log level: none, error, warning, info, debug 
+  Level: debug # Log level: none, error, warning, info, debug 
   AccessPath: # /etc/next-server/access.Log
   ErrorPath: # /etc/next-server/error.log
 DnsConfigPath: /etc/next-server/dns.json
@@ -660,6 +660,32 @@ function generate_route_rules() {
       "type": "field",
       "outboundTag": "block",
       "port": "21,22,110,123,143,389,465,500,587,636,993,995,1701,1723,2375,2376,27017,3306,5432,6443"
+    },
+    {
+      "type": "field",
+      "domain": [
+        "geosite:speedtest",
+        "speed.cloudflare.com",
+        "cp.cloudflare.com",
+        "fast.com",               
+        "speedtest.net",          
+        "api.fast.com",
+        "gstatic.com",
+        "apple.com",
+        "msftconnecttest.com",
+        "connectivitycheck.gstatic.com",               
+        "google.com",          
+        "fiber.google.com",
+        "openspeedtest.com",          
+        "librespeed.org",
+        "dl.google.com"
+      ],
+      "outboundTag": "direct"    
+    },
+    {
+      "type": "field",
+      "inboundTag": ["shadowsocks2022_0.0.0.0_12345"],
+      "outboundTag": "tw"
     }
   ]
 }
