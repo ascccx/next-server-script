@@ -302,9 +302,11 @@ function generate_node_config() {
         CertDomain: "node1.test.com"
         CertFile: /etc/next-server/cert/selfsigned.crt
         KeyFile: /etc/next-server/cert/selfsigned.key
-        Provider:
-        Email: xxx@xxx.com
-        DNSEnv:
+        Provider: cloudflare
+        Email: cloudflare@gmail.com
+        DNSEnv: 
+          CLOUDFLARE_EMAIL: cloudflare@gmail.com
+          CLOUDFLARE_API_KEY: 111111111111111111111111111111111111
       EnableDNS: true
       DNSType: UseIP
       DisableUploadTraffic: false
