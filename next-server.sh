@@ -339,7 +339,7 @@ EOF
 
     cat <<EOF > "$CONFIG_FILE"
 Log:
-  Level: debug # Log level: none, error, warning, info, debug 
+  Level: warning # Log level: none, error, warning, info, debug 
   AccessPath: # /etc/next-server/access.Log
   ErrorPath: # /etc/next-server/error.log
 DnsConfigPath: /etc/next-server/dns.json
