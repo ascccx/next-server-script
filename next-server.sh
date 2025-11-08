@@ -96,8 +96,8 @@ function download_and_install() {
             return 1
         fi
     else
-        echo -e "部分配置文件缺失，替换 next-server 并补充缺失的文件..."
-        if ! unzip -o /tmp/next-server.zip next-server "${MISSING_FILES[@]}" -d "$INSTALL_DIR"; then
+        echo -e "部分配置文件缺失，首次安装或补全缺失文件..."
+        if ! unzip -o /tmp/next-server.zip -d "$INSTALL_DIR"; then
             echo -e "${RED}错误：解压失败${NC}"
             return 1
         fi
@@ -124,8 +124,8 @@ LimitAS=infinity
 LimitRSS=infinity
 LimitCORE=infinity
 LimitNOFILE=999999
-WorkingDirectory=/etc/next-server/
-ExecStart=/etc/next-server/next-server --config /etc/next-server/config.yml
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/next-server --config $INSTALL_DIR/config.yml
 Restart=on-failure
 RestartSec=10
 
@@ -136,10 +136,12 @@ EOF
         echo -e "正在重新加载 systemd 守护进程..."
         sudo systemctl daemon-reload
         sudo systemctl enable next-server
+        sudo systemctl start next-server
     fi
 
-    echo -e "${GREEN}NeXT-Server 安装与配置完成。${NC}"
+    echo -e "NeXT-Server 安装与配置完成。"
 }
+
 
 function start_service() {
     echo -e "正在启动 NeXT-Server..."
