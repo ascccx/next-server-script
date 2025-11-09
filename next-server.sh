@@ -590,10 +590,10 @@ InboundConfigPath:
 OutboundConfigPath: /etc/next-server/custom_outbound.json
 ConnectionConfig:
   Handshake: 4
-  ConnIdle: 30
+  ConnIdle: 300
   UplinkOnly: 2
-  DownlinkOnly: 4
-  BufferSize: 64
+  DownlinkOnly: 5
+  BufferSize: 4
 Nodes:
 $all_nodes
 EOF
