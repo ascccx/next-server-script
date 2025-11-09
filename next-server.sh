@@ -283,11 +283,30 @@ function diagnose_connection() {
     
     # 4. 证书检查
     echo -e "${YELLOW}【4】证书状态${NC}"
+    
+    # 优先检查 DNS 自动申请的证书目录
+    if [ -d "$INSTALL_DIR/cert/certificates" ]; then
+        cert_files=$(find "$INSTALL_DIR/cert/certificates" -name "*.crt" 2>/dev/null)
+        if [ -n "$cert_files" ]; then
+            echo -e "${GREEN}✅ 发现自动申请的证书：${NC}"
+            while IFS= read -r cert_file; do
+                echo -e "${BLUE}证书文件: $cert_file${NC}"
+                openssl x509 -in "$cert_file" -noout -subject -dates 2>/dev/null | sed 's/^/  /'
+                echo ""
+            done <<< "$cert_files"
+        fi
+    fi
+    
+    # 检查自签证书
     if [ -f "$INSTALL_DIR/cert/selfsigned.crt" ]; then
-        echo -e "${GREEN}✅ 证书存在${NC}"
-        openssl x509 -in "$INSTALL_DIR/cert/selfsigned.crt" -noout -subject -dates 2>/dev/null
-    else
-        echo -e "${YELLOW}⚠️  证书不存在${NC}"
+        echo -e "${GREEN}✅ 发现自签证书：${NC}"
+        echo -e "${BLUE}证书文件: $INSTALL_DIR/cert/selfsigned.crt${NC}"
+        openssl x509 -in "$INSTALL_DIR/cert/selfsigned.crt" -noout -subject -dates 2>/dev/null | sed 's/^/  /'
+    fi
+    
+    # 如果都没有
+    if [ ! -d "$INSTALL_DIR/cert/certificates" ] && [ ! -f "$INSTALL_DIR/cert/selfsigned.crt" ]; then
+        echo -e "${YELLOW}⚠️  未找到任何证书${NC}"
     fi
     echo ""
     
@@ -295,12 +314,6 @@ function diagnose_connection() {
     echo -e "${YELLOW}【5】最近日志${NC}"
     journalctl -u next-server -n 15 --no-pager
     echo ""
-    
-    # 6. 建议
-    echo -e "${BLUE}━━━ 诊断建议 ━━━${NC}"
-    echo "• 无端口监听 → 检查节点配置"
-    echo "• 证书问题 → 重新生成证书 (选项10)"
-    echo "• 查看完整日志: journalctl -u next-server -f"
 }
 
 function uninstall() {
