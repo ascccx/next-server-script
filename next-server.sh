@@ -2,26 +2,23 @@
 
 # ===============================================
 # ⭐️ 自修复逻辑：移除Windows换行符 (CRLF)
-# 修复由 DOS/Windows 格式文件在 Linux/Unix 上执行引起的语法错误。
 # ===============================================
 if [ -f "$0" ]; then
-    # 检查是否有 DOS 换行符（\r$）
     if grep -q $'\r$' "$0"; then
         echo -e "\n${YELLOW}检测到 Windows 换行符 (CRLF)，正在自动修正...${NC}"
-        # 使用 sed 替换 \r 字符
         sed -i 's/\r//' "$0"
         echo -e "${GREEN}修正完成。请重新运行此脚本。${NC}\n"
         exit 0
     fi
 fi
-# ===============================================
 
 # 颜色设置
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+NC='\033[0m'
 
 # 添加别名
 if ! grep -q "alias n=" ~/.bashrc; then
@@ -59,25 +56,27 @@ function show_menu() {
     echo "----------------------------"
     echo -e "${GREEN}6${NC}. 查看日志"
     echo -e "${GREEN}7${NC}. 查看状态"
+    echo -e "${GREEN}8${NC}. 查看配置"
+    echo -e "${GREEN}9${NC}. 诊断连接"
     echo "----------------------------"
-    echo -e "${GREEN}8${NC}. 生成自签证书"
+    echo -e "${GREEN}10${NC}. 生成证书"
     echo "----------------------------"
-    echo -e "${GREEN}9${NC}. 生成路由规则"
-    echo -e "${GREEN}10${NC}. 生成节点配置"
+    echo -e "${GREEN}11${NC}. 生成路由规则"
+    echo -e "${GREEN}12${NC}. 生成节点配置"
     echo "----------------------------"
-    echo -e "${GREEN}11${NC}. 生成DNS解锁配置"
+    echo -e "${GREEN}13${NC}. 生成DNS解锁配置"
     echo "----------------------------"
     echo -e "${GREEN}0${NC}. 退出脚本"
 }
 
 function download_and_install() {
-    echo -e "正在下载 NeXT-Server..."
-    if ! wget -q -O /tmp/next-server.zip "$DOWNLOAD_URL"; then
-        echo -e "${RED}错误：下载失败，请检查网络连接或下载链接。${NC}"
+    echo -e "${BLUE}正在下载 NeXT-Server...${NC}"
+    if ! wget -q --show-progress -O /tmp/next-server.zip "$DOWNLOAD_URL"; then
+        echo -e "${RED}❌ 下载失败，请检查网络连接${NC}"
         return 1
     fi
 
-    echo -e "正在创建安装目录..."
+    echo -e "${BLUE}正在创建安装目录...${NC}"
     mkdir -p "$INSTALL_DIR"
 
     CONFIG_FILES=("config.yml" "custom_inbound.json" "custom_outbound.json" "dns.json" "geoip.dat" "geosite.dat" "next-server" "route.json" "rulelist")
@@ -90,15 +89,15 @@ function download_and_install() {
     done
 
     if [ "${#MISSING_FILES[@]}" -eq 0 ]; then
-        echo -e "所有配置文件已存在，仅替换 next-server 文件..."
+        echo -e "${YELLOW}配置文件已存在，仅更新主程序...${NC}"
         if ! unzip -o /tmp/next-server.zip next-server -d "$INSTALL_DIR"; then
-            echo -e "${RED}错误：解压失败${NC}"
+            echo -e "${RED}❌ 解压失败${NC}"
             return 1
         fi
     else
-        echo -e "部分配置文件缺失，首次安装或补全缺失文件..."
+        echo -e "${BLUE}正在解压文件...${NC}"
         if ! unzip -o /tmp/next-server.zip -d "$INSTALL_DIR"; then
-            echo -e "${RED}错误：解压失败${NC}"
+            echo -e "${RED}❌ 解压失败${NC}"
             return 1
         fi
     fi
@@ -106,10 +105,10 @@ function download_and_install() {
     chmod +x "$INSTALL_DIR/next-server"
 
     if [ -f "$SERVICE_FILE" ]; then
-        echo -e "系统服务文件已存在，仅重启 NeXT-Server。"
+        echo -e "${YELLOW}服务已存在，正在重启...${NC}"
         sudo systemctl restart next-server
     else
-        echo -e "正在创建 systemd 服务文件..."
+        echo -e "${BLUE}正在创建系统服务...${NC}"
         cat <<EOF | sudo tee "$SERVICE_FILE" > /dev/null
 [Unit]
 Description=NeXT Server Service
@@ -128,164 +127,411 @@ WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/next-server --config $INSTALL_DIR/config.yml
 Restart=on-failure
 RestartSec=10
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-        echo -e "正在重新加载 systemd 守护进程..."
         sudo systemctl daemon-reload
         sudo systemctl enable next-server
         sudo systemctl start next-server
     fi
 
-    echo -e "NeXT-Server 安装与配置完成。"
+    echo -e "${GREEN}✅ NeXT-Server 安装完成${NC}"
 }
 
-
 function start_service() {
-    echo -e "正在启动 NeXT-Server..."
+    echo -e "${BLUE}正在启动服务...${NC}"
     if sudo systemctl start next-server; then
-        echo -e "${GREEN}NeXT-Server 已启动。${NC}"
+        echo -e "${GREEN}✅ 服务已启动${NC}"
     else
-        echo -e "${RED}启动失败，请检查日志。${NC}"
+        echo -e "${RED}❌ 启动失败${NC}"
         return 1
     fi
 }
 
 function stop_service() {
-    echo -e "正在停止 NeXT-Server..."
+    echo -e "${BLUE}正在停止服务...${NC}"
     if sudo systemctl stop next-server; then
-        echo -e "${YELLOW}NeXT-Server 已停止。${NC}"
+        echo -e "${YELLOW}⏹️  服务已停止${NC}"
     else
-        echo -e "${RED}停止失败。${NC}"
+        echo -e "${RED}❌ 停止失败${NC}"
         return 1
     fi
 }
 
 function restart_service() {
-    echo -e "正在重启 NeXT-Server..."
+    echo -e "${BLUE}正在重启服务...${NC}"
     if sudo systemctl restart next-server; then
-        echo -e "${GREEN}NeXT-Server 已重启。${NC}"
+        echo -e "${GREEN}✅ 服务已重启${NC}"
     else
-        echo -e "${RED}重启失败，请检查日志。${NC}"
+        echo -e "${RED}❌ 重启失败${NC}"
         return 1
     fi
 }
 
 function view_logs() {
-    echo -e "${YELLOW}正在查看 NeXT-Server 日志...${NC}"
+    echo -e "${YELLOW}📋 实时日志 (Ctrl+C 退出)${NC}"
+    echo ""
     sudo journalctl -u next-server -f
 }
 
 function check_status() {
-    echo -e "${YELLOW}正在检查 NeXT-Server 状态...${NC}"
+    echo -e "${YELLOW}📊 服务状态${NC}"
+    echo ""
     sudo systemctl status next-server
 }
 
+function view_config() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            查看配置文件${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "  ${CYAN}1${NC}. 主配置文件 (config.yml)"
+    echo -e "  ${CYAN}2${NC}. 路由配置 (route.json)"
+    echo -e "  ${CYAN}3${NC}. DNS配置 (dns.json)"
+    echo -e "  ${CYAN}4${NC}. 证书配置 (cert_config.yml)"
+    echo -e "  ${CYAN}5${NC}. 查看所有配置"
+    echo ""
+    read -p "请选择 [1-5]: " config_choice
+    
+    case $config_choice in
+        1)
+            if [ -f "$CONFIG_FILE" ]; then
+                echo -e "${GREEN}━━━ config.yml ━━━${NC}"
+                cat "$CONFIG_FILE"
+            else
+                echo -e "${RED}❌ 配置文件不存在${NC}"
+            fi
+            ;;
+        2)
+            if [ -f "$ROUTE_FILE" ]; then
+                echo -e "${GREEN}━━━ route.json (前50行) ━━━${NC}"
+                cat "$ROUTE_FILE" | head -50
+            else
+                echo -e "${RED}❌ 路由文件不存在${NC}"
+            fi
+            ;;
+        3)
+            if [ -f "$INSTALL_DIR/dns.json" ]; then
+                echo -e "${GREEN}━━━ dns.json ━━━${NC}"
+                cat "$INSTALL_DIR/dns.json"
+            else
+                echo -e "${RED}❌ DNS配置不存在${NC}"
+            fi
+            ;;
+        4)
+            if [ -f "$INSTALL_DIR/cert/cert_config.yml" ]; then
+                echo -e "${GREEN}━━━ cert_config.yml ━━━${NC}"
+                cat "$INSTALL_DIR/cert/cert_config.yml"
+            else
+                echo -e "${YELLOW}⚠️  证书配置不存在${NC}"
+            fi
+            ;;
+        5)
+            echo -e "${GREEN}━━━ 配置文件概览 ━━━${NC}"
+            [ -f "$CONFIG_FILE" ] && echo "✅ config.yml" || echo "❌ config.yml"
+            [ -f "$ROUTE_FILE" ] && echo "✅ route.json" || echo "❌ route.json"
+            [ -f "$INSTALL_DIR/dns.json" ] && echo "✅ dns.json" || echo "❌ dns.json"
+            [ -f "$INSTALL_DIR/cert/selfsigned.crt" ] && echo "✅ 证书文件" || echo "❌ 证书文件"
+            ;;
+        *)
+            echo -e "${RED}❌ 无效选择${NC}"
+            ;;
+    esac
+}
+
+function diagnose_connection() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            连接诊断${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # 1. 服务状态
+    echo -e "${YELLOW}【1】服务状态${NC}"
+    if systemctl is-active --quiet next-server; then
+        echo -e "${GREEN}✅ 服务运行中${NC}"
+    else
+        echo -e "${RED}❌ 服务未运行${NC}"
+        return 1
+    fi
+    echo ""
+    
+    # 2. 监听端口
+    echo -e "${YELLOW}【2】监听端口${NC}"
+    if command -v ss &> /dev/null; then
+        listening_ports=$(ss -tuln | grep LISTEN | grep -E ':(443|80|[0-9]{4,5})\s')
+        if [ -n "$listening_ports" ]; then
+            echo -e "${GREEN}发现端口：${NC}"
+            echo "$listening_ports"
+        else
+            echo -e "${RED}❌ 无监听端口${NC}"
+        fi
+    fi
+    echo ""
+    
+    # 3. 配置检查
+    echo -e "${YELLOW}【3】配置文件${NC}"
+    if [ -f "$CONFIG_FILE" ]; then
+        echo -e "${GREEN}✅ config.yml 存在${NC}"
+        grep -A 5 "NodeID:" "$CONFIG_FILE" | head -20
+    fi
+    echo ""
+    
+    # 4. 证书检查
+    echo -e "${YELLOW}【4】证书状态${NC}"
+    if [ -f "$INSTALL_DIR/cert/selfsigned.crt" ]; then
+        echo -e "${GREEN}✅ 证书存在${NC}"
+        openssl x509 -in "$INSTALL_DIR/cert/selfsigned.crt" -noout -subject -dates 2>/dev/null
+    else
+        echo -e "${YELLOW}⚠️  证书不存在${NC}"
+    fi
+    echo ""
+    
+    # 5. 最近日志
+    echo -e "${YELLOW}【5】最近日志${NC}"
+    journalctl -u next-server -n 15 --no-pager
+    echo ""
+    
+    # 6. 建议
+    echo -e "${BLUE}━━━ 诊断建议 ━━━${NC}"
+    echo "• 无端口监听 → 检查节点配置"
+    echo "• 证书问题 → 重新生成证书 (选项10)"
+    echo "• 查看完整日志: journalctl -u next-server -f"
+}
+
 function uninstall() {
-    read -p "确定要卸载 NeXT-Server 吗？[y/N]: " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        echo -e "正在停止并禁用 NeXT-Server..."
+    read -p "⚠️  确定要卸载吗? [y/N]: " confirm
+    # 空格、y、Y 都视为确认
+    if [[ "$confirm" =~ ^[Yy[:space:]]$ || "$confirm" == " " ]]; then
+        echo -e "${BLUE}正在卸载...${NC}"
         sudo systemctl stop next-server 2>/dev/null
         sudo systemctl disable next-server 2>/dev/null
-
-        echo -e "正在删除 systemd 服务文件..."
         sudo rm -f "$SERVICE_FILE"
-
-        echo -e "正在删除安装目录..."
         sudo rm -rf "$INSTALL_DIR"
-
-        echo -e "正在重新加载 systemd 守护进程..."
         sudo systemctl daemon-reload
-
-        echo -e "${GREEN}NeXT-Server 已卸载。${NC}"
+        echo -e "${GREEN}✅ 卸载完成${NC}"
     else
-        echo -e "${YELLOW}卸载已取消。${NC}"
+        echo -e "${YELLOW}已取消${NC}"
     fi
 }
 
 function generate_self_signed_cert() {
-    echo -e "${YELLOW}正在生成自签证书...${NC}"
-    
-    if ! command -v openssl &> /dev/null; then
-        echo -e "正在安装 openssl..."
-        sudo apt update && sudo apt install openssl -y
-    fi
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            证书生成${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "  ${CYAN}1${NC}. 自签证书 (测试用)"
+    echo -e "  ${CYAN}2${NC}. Let's Encrypt (Cloudflare DNS)"
+    echo ""
+    read -p "请选择 [1/2, 默认1]: " cert_type_choice
     
     sudo mkdir -p /etc/next-server/cert
     
-    if sudo openssl req -x509 -nodes -days 365 \
-        -newkey rsa:2048 \
-        -keyout /etc/next-server/cert/selfsigned.key \
-        -out /etc/next-server/cert/selfsigned.crt; then
-        echo -e "${GREEN}自签证书已生成：/etc/next-server/cert/selfsigned.crt${NC}"
+    if [[ "$cert_type_choice" == "2" ]]; then
+        echo -e "${GREEN}━━━ Let's Encrypt 自动申请 ━━━${NC}"
+        
+        read -p "📌 域名 (如 node1.example.com): " cert_domain
+        [[ -z "$cert_domain" ]] && cert_domain="node1.test.com"
+        
+        read -p "📧 邮箱: " acme_email
+        [[ -z "$acme_email" ]] && acme_email="acme@example.com"
+        
+        read -p "🔑 Cloudflare API Key: " cf_api_key
+        [[ -z "$cf_api_key" ]] && cf_api_key="your_api_key"
+        
+        cat > /etc/next-server/cert/cert_config.yml <<EOF
+CertMode: dns
+CertDomain: "$cert_domain"
+CertFile: /etc/next-server/cert/selfsigned.crt
+KeyFile: /etc/next-server/cert/selfsigned.key
+Provider: cloudflare
+Email: $acme_email
+DNSEnv:
+  CLOUDFLARE_EMAIL: "$acme_email"
+  CLOUDFLARE_API_KEY: "$cf_api_key"
+EOF
+        
+        echo -e "${GREEN}✅ 证书配置已保存${NC}"
+        echo -e "${YELLOW}⚠️  域名需先解析到本机 IP${NC}"
+        
     else
-        echo -e "${RED}证书生成失败${NC}"
-        return 1
+        echo -e "${GREEN}━━━ 生成自签证书 ━━━${NC}"
+        
+        cert_cn="node1.test.com"
+        
+        if sudo openssl req -x509 -nodes -days 365 \
+            -newkey rsa:2048 \
+            -keyout /etc/next-server/cert/selfsigned.key \
+            -out /etc/next-server/cert/selfsigned.crt \
+            -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Test/OU=IT/CN=$cert_n"; then
+            echo -e "${GREEN}✅ 证书已生成${NC}"
+            echo -e "  📄 /etc/next-server/cert/selfsigned.crt"
+            echo -e "  🔑 /etc/next-server/cert/selfsigned.key"
+        else
+            echo -e "${RED}❌ 生成失败${NC}"
+        fi
     fi
 }
 
 function generate_node_config() {
-    echo -e "${BLUE}=== 生成节点配置文件 ===${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            生成节点配置${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
 
     if [ ! -d "$INSTALL_DIR" ]; then
-        echo -e "${RED}错误：NeXT-Server 尚未安装，请先安装。${NC}"
+        echo -e "${RED}❌ 请先安装 NeXT-Server${NC}"
         return 1
     fi
 
     local first_api_host=""
     local first_api_key=""
     local all_nodes=""
+    
+    # 证书配置缓存
+    local last_cert_mode=""
+    local last_cert_domain=""
+    local last_acme_email=""
+    local last_cf_api_key=""
 
     while true; do
-        echo -e "${YELLOW}请输入节点配置信息：${NC}"
-
-        # 面板类型默认为 sspanel-old
-        local panel_type="sspanel-old"
-
+        echo -e "${YELLOW}━━━ 节点基本信息 ━━━${NC}"
+        
+        # 1. API信息（首次输入后可复用）
         if [ -z "$first_api_host" ]; then
-            read -p "面板地址 (ApiHost): " api_host
-            if [[ -z "$api_host" ]]; then
-                echo -e "${RED}错误：面板地址不能为空${NC}"
-                continue
-            fi
-
-            read -p "API密钥 (ApiKey): " api_key
-            if [[ -z "$api_key" ]]; then
-                echo -e "${RED}错误：API密钥不能为空${NC}"
-                continue
-            fi
-
-            # 保存第一个节点的公共配置
+            read -p "📡 面板地址 (ApiHost): " api_host
+            [[ -z "$api_host" ]] && { echo -e "${RED}❌ 不能为空${NC}"; continue; }
+            
+            read -p "🔑 API密钥 (ApiKey): " api_key
+            [[ -z "$api_key" ]] && { echo -e "${RED}❌ 不能为空${NC}"; continue; }
+            
             first_api_host="$api_host"
             first_api_key="$api_key"
         else
-            echo -e "${GREEN}使用第一个节点的 API 信息：${first_api_host}, ${first_api_key}${NC}"
+            echo -e "${GREEN}✓ 使用已输入的 API 信息${NC}"
             api_host="$first_api_host"
             api_key="$first_api_key"
         fi
         
-        read -p "节点ID (NodeID): " node_id
-        if [[ -z "$node_id" ]]; then
-            echo -e "${RED}错误：节点ID不能为空${NC}"
-            continue
-        fi
+        # 2. 节点ID
+        read -p "🆔 节点ID (NodeID): " node_id
+        [[ -z "$node_id" ]] && { echo -e "${RED}❌ 不能为空${NC}"; continue; }
 
-        # 节点类型选择
-        echo "支持的节点类型："
-        echo "  1. shadowsocks2022"
-        echo "  2. trojan"
-        echo "  3. vmess"
-        read -p "选择节点类型 [1-3，默认1]: " node_choice
+        # 3. 节点类型
+        echo ""
+        echo "节点类型："
+        echo -e "  ${CYAN}1${NC}. shadowsocks2022 (无需证书)"
+        echo -e "  ${CYAN}2${NC}. trojan (需要证书)"
+        echo -e "  ${CYAN}3${NC}. vmess (需要证书)"
+        read -p "选择 [1-3, 默认1]: " node_choice
+        
         case $node_choice in
             2) node_type="trojan" ;;
             3) node_type="vmess" ;;
             *) node_type="shadowsocks2022" ;;
         esac
+        
+        # 4. 证书配置（仅 trojan/vmess 需要）
+        local cert_config=""
+        
+        if [[ "$node_type" == "trojan" || "$node_type" == "vmess" ]]; then
+            echo ""
+            echo -e "${YELLOW}━━━ TLS 证书配置 ━━━${NC}"
+            
+            # 如果有缓存，询问是否复用
+            if [[ -n "$last_cert_mode" ]]; then
+                echo -e "${GREEN}检测到上次的证书配置：${NC}"
+                echo "  模式: $last_cert_mode"
+                echo "  域名: $last_cert_domain"
+                [[ "$last_cert_mode" == "dns" ]] && echo "  邮箱: $last_acme_email"
+                echo ""
+                read -p "是否复用上次的证书配置? [Y/n]: " reuse_cert
+                
+                if [[ "$reuse_cert" =~ ^[Nn]$ ]]; then
+                    # 选择不复用，重新输入
+                    last_cert_mode=""
+                else
+                    # 复用配置（默认或输入 Y/y）
+                    cert_mode="$last_cert_mode"
+                    cert_domain="$last_cert_domain"
+                    acme_email="$last_acme_email"
+                    cf_api_key="$last_cf_api_key"
+                    
+                    echo -e "${GREEN}✓ 已复用证书配置${NC}"
+                fi
+            fi
+            
+            # 如果没有缓存或选择不复用，则重新输入
+            if [[ -z "$last_cert_mode" ]]; then
+                echo -e "  ${CYAN}1${NC}. file (使用已有证书)"
+                echo -e "  ${CYAN}2${NC}. dns (自动申请 Let's Encrypt)"
+                read -p "证书模式 [1/2, 默认1]: " cert_mode_choice
+                
+                local cert_mode="file"
+                local cert_domain="node1.test.com"
+                local cert_file="/etc/next-server/cert/selfsigned.crt"
+                local key_file="/etc/next-server/cert/selfsigned.key"
+                local cert_provider="cloudflare"
+                local acme_email="acme@example.com"
+                local cf_api_key="your_api_key"
+                local dnsenv_config=""
+                
+                if [[ "$cert_mode_choice" == "2" ]]; then
+                    cert_mode="dns"
+                    
+                    read -p "📌 证书域名: " cert_domain
+                    [[ -z "$cert_domain" ]] && cert_domain="node1.test.com"
+                    
+                    read -p "📧 邮箱: " acme_email
+                    [[ -z "$acme_email" ]] && acme_email="acme@example.com"
+                    
+                    read -p "🔑 Cloudflare API Key: " cf_api_key
+                    [[ -z "$cf_api_key" ]] && cf_api_key="your_api_key"
+                    
+                    dnsenv_config="        DNSEnv:
+          CLOUDFLARE_EMAIL: \"$acme_email\"
+          CLOUDFLARE_API_KEY: \"$cf_api_key\""
+                fi
+                
+                # 保存到缓存
+                last_cert_mode="$cert_mode"
+                last_cert_domain="$cert_domain"
+                last_acme_email="$acme_email"
+                last_cf_api_key="$cf_api_key"
+            else
+                # 使用缓存的配置生成 dnsenv_config
+                local cert_file="/etc/next-server/cert/selfsigned.crt"
+                local key_file="/etc/next-server/cert/selfsigned.key"
+                local cert_provider="cloudflare"
+                local dnsenv_config=""
+                
+                if [[ "$cert_mode" == "dns" ]]; then
+                    dnsenv_config="        DNSEnv:
+          CLOUDFLARE_EMAIL: \"$acme_email\"
+          CLOUDFLARE_API_KEY: \"$cf_api_key\""
+                fi
+            fi
+            
+            cert_config="      CertConfig:
+        CertMode: $cert_mode
+        CertDomain: \"$cert_domain\"
+        CertFile: $cert_file
+        KeyFile: $key_file
+        Provider: $cert_provider
+        Email: $acme_email
+$dnsenv_config"
+        else
+            echo -e "${GREEN}✓ shadowsocks2022 节点，无需证书配置${NC}"
+            cert_config="      # shadowsocks2022 无需证书配置"
+        fi
 
+        # 5. 生成节点配置块
         node_yaml=$(cat <<EOF
-  - PanelType: "$panel_type"
+  - PanelType: "sspanel-old"
     ApiConfig:
       ApiHost: "$api_host"
       ApiKey: "$api_key"
@@ -294,21 +540,11 @@ function generate_node_config() {
       Timeout: 30
       SpeedLimit: 0
       DeviceLimit: 0
-      RuleListPath:
     ControllerConfig:
       ListenIP: 0.0.0.0
       SendIP: 0.0.0.0
       UpdatePeriodic: 60
-      CertConfig:
-        CertMode: file
-        CertDomain: "node1.test.com"
-        CertFile: /etc/next-server/cert/selfsigned.crt
-        KeyFile: /etc/next-server/cert/selfsigned.key
-        Provider: cloudflare
-        Email: cloudflare@gmail.com
-        DNSEnv: 
-          CLOUDFLARE_EMAIL: cloudflare@gmail.com
-          CLOUDFLARE_API_KEY: 111111111111111111111111111111111111
+$cert_config
       EnableDNS: true
       DNSType: UseIP
       DisableUploadTraffic: false
@@ -316,56 +552,50 @@ function generate_node_config() {
       EnableProxyProtocol: false
       DisableIVCheck: false
       DisableSniffing: false
-      AutoSpeedLimitConfig:
-        Limit: 0
-        WarnTimes: 0
-        LimitSpeed: 0
-        LimitDuration: 0
 EOF
 )
 
         all_nodes+="$node_yaml"$'\n'
 
-        read -p "是否继续添加节点？[Y/n]: " more
+        echo ""
+        read -p "继续添加节点? [Y/n]: " more
+        # 回车（空输入）、y、Y 都视为继续
         [[ "$more" =~ ^[Nn]$ ]] && break
     done
 
-    if [[ -z "$all_nodes" ]]; then
-        echo -e "${RED}没有输入任何节点配置，取消生成。${NC}"
-        return 1
-    fi
-
+    # 6. 生成完整配置文件
     [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$CONFIG_FILE.bak.$(date +%s)"
 
     cat <<EOF > "$CONFIG_FILE"
 Log:
-  Level: warning # Log level: none, error, warning, info, debug 
-  AccessPath: # /etc/next-server/access.Log
-  ErrorPath: # /etc/next-server/error.log
+  Level: warning
+  AccessPath: 
+  ErrorPath: 
 DnsConfigPath: /etc/next-server/dns.json
 RouteConfigPath: /etc/next-server/route.json
-InboundConfigPath: # /etc/next-server/custom_inbound.json
+InboundConfigPath: 
 OutboundConfigPath: /etc/next-server/custom_outbound.json
 ConnectionConfig:
-  Handshake: 4 # Handshake time limit, Second
-  ConnIdle: 30 # Connection idle time limit, Second
-  UplinkOnly: 2 # Time limit when the connection downstream is closed, Second
-  DownlinkOnly: 4 # Time limit when the connection is closed after the uplink is closed, Second
-  BufferSize: 64 # The internal cache size of each connection, kB
+  Handshake: 4
+  ConnIdle: 30
+  UplinkOnly: 2
+  DownlinkOnly: 4
+  BufferSize: 64
 Nodes:
 $all_nodes
 EOF
 
-    echo -e "${GREEN}配置已生成：$CONFIG_FILE${NC}"
-    read -p "是否立即重启以应用配置？[y/N]: " confirm
-    [[ "$confirm" =~ ^[Yy]$ ]] && restart_service
+    echo ""
+    echo -e "${GREEN}✅ 配置已生成: $CONFIG_FILE${NC}"
+    read -p "立即重启服务? [Y/n]: " confirm
+    # 回车（空输入）、y、Y 都视为确认
+    [[ ! "$confirm" =~ ^[Nn]$ ]] && restart_service
 }
 
 function generate_route_rules() {
-    echo -e "${BLUE}=== 生成路由规则 ===${NC}"
+    echo -e "${BLUE}正在生成路由规则...${NC}"
     mkdir -p "$INSTALL_DIR"
     
-    # 修复：端口字段添加引号，符合 JSON 标准
     cat <<'EOF' > "$ROUTE_FILE"
 {
   "domainStrategy": "IPOnDemand",
@@ -385,176 +615,6 @@ function generate_route_rules() {
     {
       "type": "field",
       "outboundTag": "block",
-      "domain": [
-        "regexp:(api|ps|sv|offnavi|newvector|ulog\\.imap|newloc)(\\.map|)\\.(baidu|n\\.shifen)\\.com",
-        "regexp:(^|\\.)((360|so)\\.(cn|com))",
-        "regexp:(Subject|HELO|SMTP)",
-        "regexp:(^|\\.)((guerrillamail|guerrillamailblock|sharklasers|grr|pokemail|spam4|bccto|chacuo|027168)\\.(info|biz|com|de|net|org|me|la))",
-        "regexp:(^|\\.)((dafahao|mingjinglive|botanwang|minghui|dongtaiwang|falunaz|epochtimes|ntdtv|falundafa|falungong|wujieliulan|zhengjian)\\.(org|com|net))",
-        "regexp:(ed2k|\\.torrent|peer_id=|announce|info_hash|get_peers|find_node|BitTorrent|announce_peer|announce\\.php\\?passkey=|magnet:|xunlei|sandai|Thunder|XLLiveUD|bt_key)",
-        "regexp:(^|\\.)((guanjia\\.qq\\.com|qqpcmgr|QQPCMGR))",
-        "regexp:(^|\\.)((rising|kingsoft|duba|xindubawukong|jinshanduba)\\.(com|net|org))",
-        "regexp:(^|\\.)((netvigator|torproject)\\.(com|cn|net|org))",
-        "regexp:(visa|mycard|mastercard|gov|gash|beanfun|bank)",
-        "regexp:(^|\\.)((miaozhen|cnzz|talkingdata|umeng)\\.(cn|com))",
-        "regexp:(^|\\.)pincong\\.rocks",
-        "regexp:(^|\\.)taobao\\.com",
-        "regexp:(^|\\.)falundafa",
-        "regexp:(^|\\.)minghui",
-        "regexp:(^|\\.)epochtimes",
-        "regexp:(^|\\.)ntdtv",
-        "regexp:(^|\\.)voachinese",
-        "regexp:(^|\\.)appledaily",
-        "regexp:(^|\\.)nextdigital",
-        "regexp:(^|\\.)dalailama",
-        "regexp:(^|\\.)nytimes\\.com",
-        "regexp:(^|\\.)bloomberg\\.com",
-        "regexp:(^|\\.)independent",
-        "regexp:(^|\\.)freetibet",
-        "regexp:(^|\\.)citizenpowerfor",
-        "regexp:(^|\\.)rfa\\.org",
-        "regexp:(^|\\.)bbc\\.(com|co\\.uk)",
-        "regexp:(^|\\.)theinitium\\.com",
-        "regexp:(^|\\.)tibet\\.net",
-        "regexp:(^|\\.)jw\\.org",
-        "regexp:(^|\\.)bannedbook\\.org",
-        "regexp:(^|\\.)dw\\.com",
-        "regexp:(^|\\.)storm\\.mg",
-        "regexp:(^|\\.)yam\\.com",
-        "regexp:(^|\\.)chinadigitaltimes\\.com",
-        "regexp:(^|\\.)ltn\\.com\\.tw",
-        "regexp:(^|\\.)mpweekly\\.com",
-        "regexp:(^|\\.)cup\\.com\\.hk",
-        "regexp:(^|\\.)thenewslens\\.com",
-        "regexp:(^|\\.)inside\\.com\\.tw",
-        "regexp:(^|\\.)everylittled\\.com",
-        "regexp:(^|\\.)cool3c\\.com",
-        "regexp:(^|\\.)taketla\\.zaiko\\.io",
-        "regexp:(^|\\.)news\\.agentm\\.tw",
-        "regexp:(^|\\.)sportsv\\.net",
-        "regexp:(^|\\.)research\\.tnlmedia\\.com",
-        "regexp:(^|\\.)ad2iction\\.com",
-        "regexp:(^|\\.)viad\\.com\\.tw",
-        "regexp:(^|\\.)tnlmedia\\.com",
-        "regexp:(^|\\.)becomingaces\\.com",
-        "regexp:(^|\\.)flipboard\\.com",
-        "regexp:(^|\\.)soundofhope\\.org",
-        "regexp:(^|\\.)wenxuecity\\.com",
-        "regexp:(^|\\.)aboluowang\\.com",
-        "regexp:(^|\\.)2047\\.name",
-        "regexp:(^|\\.)shu\\.best",
-        "regexp:(^|\\.)shenyunperformingarts\\.org",
-        "regexp:(^|\\.)cirosantilli",
-        "regexp:(^|\\.)wsj\\.com",
-        "regexp:(^|\\.)rfi\\.fr",
-        "regexp:(^|\\.)chinapress\\.com\\.my",
-        "regexp:(^|\\.)hancel\\.org",
-        "regexp:(^|\\.)miraheze\\.org",
-        "regexp:(^|\\.)zhuichaguoji\\.org",
-        "regexp:(^|\\.)fawanghuihui\\.org",
-        "regexp:(^|\\.)hopto\\.org",
-        "regexp:(^|\\.)amnesty\\.org",
-        "regexp:(^|\\.)hrw\\.org",
-        "regexp:(^|\\.)irmct\\.org",
-        "regexp:(^|\\.)zhengjian\\.org",
-        "regexp:(^|\\.)dongtaiwang\\.com",
-        "regexp:(^|\\.)ultrasurf\\.us",
-        "regexp:(^|\\.)yibaochina\\.com",
-        "regexp:(^|\\.)roc-taiwan\\.org",
-        "regexp:(^|\\.)creaders\\.net",
-        "regexp:(^|\\.)upmedia\\.mg",
-        "regexp:(^|\\.)ydn\\.com\\.tw",
-        "regexp:(^|\\.)udn\\.com",
-        "regexp:(^|\\.)theaustralian\\.com\\.au",
-        "regexp:(^|\\.)voacantonese\\.com",
-        "regexp:(^|\\.)voanews\\.com",
-        "regexp:(^|\\.)bitterwinter\\.org",
-        "regexp:(^|\\.)christianstudy\\.com",
-        "regexp:(^|\\.)learnfalungong\\.com",
-        "regexp:(^|\\.)usembassy-china\\.org\\.cn",
-        "regexp:(^|\\.)master-li\\.qi-gong\\.me",
-        "regexp:(^|\\.)zhengwunet\\.org",
-        "regexp:(^|\\.)modernchinastudies\\.org",
-        "regexp:(^|\\.)ninecommentaries\\.com",
-        "regexp:(^|\\.)dafahao\\.com",
-        "regexp:(^|\\.)shenyuncreations\\.com",
-        "regexp:(^|\\.)tgcchinese\\.org",
-        "regexp:(^|\\.)botanwang\\.com",
-        "regexp:(^|\\.)freedomhouse\\.org",
-        "regexp:(^|\\.)abc\\.net\\.au",
-        "regexp:(^|\\.)funmart\\.beanfun\\.com",
-        "regexp:(^|\\.)gashpoint\\.com",
-        "regexp:(^|\\.)gov",
-        "regexp:(^|\\.)edu",
-        "regexp:(^|\\.)alipay\\.com",
-        "regexp:(^|\\.)tenpay\\.com",
-        "regexp:(^|\\.)unionpay\\.com",
-        "regexp:(^|\\.)yunshanfu\\.cn",
-        "regexp:(^|\\.)icbc\\.com\\.cn",
-        "regexp:(^|\\.)ccb\\.com",
-        "regexp:(^|\\.)boc\\.cn",
-        "regexp:(^|\\.)bankcomm\\.com",
-        "regexp:(^|\\.)abchina\\.com",
-        "regexp:(^|\\.)cmbchina\\.com",
-        "regexp:(^|\\.)psbc\\.com",
-        "regexp:(^|\\.)cebbank\\.com",
-        "regexp:(^|\\.)cmbc\\.com\\.cn",
-        "regexp:(^|\\.)pingan\\.com",
-        "regexp:(^|\\.)spdb\\.com\\.cn",
-        "regexp:(^|\\.)bank\\.ecitic\\.com",
-        "regexp:(^|\\.)cib\\.com\\.cn",
-        "regexp:(^|\\.)hxb\\.com\\.cn",
-        "regexp:(^|\\.)cgbchina\\.com\\.cn",
-        "regexp:(^|\\.)jcbcard\\.cn",
-        "regexp:(^|\\.)pbccrc\\.org\\.cn",
-        "regexp:(^|\\.)adbc\\.com\\.cn",
-        "regexp:(^|\\.)gamepay\\.com\\.tw",
-        "regexp:(^|\\.)10099\\.com\\.cn",
-        "regexp:(^|\\.)10010\\.com",
-        "regexp:(^|\\.)189\\.cn",
-        "regexp:(^|\\.)10086\\.cn",
-        "regexp:(^|\\.)1688\\.com",
-        "regexp:(^|\\.)jd\\.com",
-        "regexp:(^|\\.)pinduoduo\\.com",
-        "regexp:(^|\\.)cctv\\.com",
-        "regexp:(^|\\.)cntv\\.cn",
-        "regexp:(^|\\.)tianya\\.cn",
-        "regexp:(^|\\.)tieba\\.baidu\\.com",
-        "regexp:(^|\\.)xuexi\\.cn",
-        "regexp:(^|\\.)rednet\\.cn",
-        "regexp:(^|\\.)weibo\\.com",
-        "regexp:(^|\\.)zhihu\\.com",
-        "regexp:(^|\\.)douban\\.com",
-        "regexp:(^|\\.)tmall\\.com",
-        "regexp:(^|\\.)vip\\.com",
-        "regexp:(^|\\.)toutiao\\.com",
-        "regexp:(^|\\.)zijieapi\\.com",
-        "regexp:(^|\\.)xiaomi\\.cn",
-        "regexp:(^|\\.)oppo\\.cn",
-        "regexp:(^|\\.)oneplusbbs\\.com",
-        "regexp:(^|\\.)bbs\\.vivo\\.com\\.cn",
-        "regexp:(^|\\.)club\\.lenovo\\.com\\.cn",
-        "regexp:(^|\\.)bbs\\.iqoo\\.com",
-        "regexp:(^|\\.)realmebbs\\.com",
-        "regexp:(^|\\.)rogbbs\\.asus\\.com\\.cn",
-        "regexp:(^|\\.)bbs\\.myzte\\.cn",
-        "regexp:(^|\\.)club\\.huawei\\.com",
-        "regexp:(^|\\.)bbs\\.meizu\\.cn",
-        "regexp:(^|\\.)xiaohongshu\\.com",
-        "regexp:(^|\\.)coolapk\\.com",
-        "regexp:(^|\\.)bbsuc\\.cn",
-        "regexp:(^|\\.)tangdou\\.com",
-        "regexp:(^|\\.)oneniceapp\\.com",
-        "regexp:(^|\\.)izuiyou\\.com",
-        "regexp:(^|\\.)pipigx\\.com",
-        "regexp:(^|\\.)ixiaochuan\\.cn",
-        "regexp:(^|\\.)duitang\\.com",
-        "regexp:(^|\\.)renren\\.com"
-      ]
-    },
-    {
-      "type": "field",
-      "outboundTag": "block",
       "protocol": ["bittorrent"]
     },
     {
@@ -567,50 +627,36 @@ function generate_route_rules() {
       "domain": [
         "geosite:speedtest",
         "speed.cloudflare.com",
-        "cp.cloudflare.com",
         "fast.com",
-        "speedtest.net",
-        "api.fast.com",
-        "gstatic.com",
-        "apple.com",
-        "msftconnecttest.com",
-        "connectivitycheck.gstatic.com",
-        "google.com",
-        "fiber.google.com",
-        "openspeedtest.com",
-        "librespeed.org",
-        "dl.google.com"
+        "speedtest.net"
       ],
       "outboundTag": "direct"
-    },
-    {
-      "type": "field",
-      "inboundTag": ["shadowsocks2022_0.0.0.0_12345"],
-      "outboundTag": "tw"
     }
   ]
 }
 EOF
     
-    echo -e "${GREEN}路由规则已生成：$ROUTE_FILE${NC}"
+    echo -e "${GREEN}✅ 路由规则已生成: $ROUTE_FILE${NC}"
 }
 
 function generate_dns_unlock_config() {
-    echo "📥 正在生成 DNS 解锁配置..."
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            DNS 解锁配置${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
 
     output_file="/etc/next-server/dns.json"
     mkdir -p /etc/next-server
 
-    declare -A domain_map=(
-        [1]="geosite:category-ai-chat-!cn"
-        [2]="geosite:netflix"
-        [3]="geosite:disney"
-        [4]="geosite:tiktok"
-        [5]="geosite:youtube"
-        [6]="geosite:spotify"
+    local domain_options=(
+        "geosite:category-ai-chat-!cn"
+        "geosite:netflix"
+        "geosite:disney"
+        "geosite:tiktok"
+        "geosite:youtube"
+        "geosite:spotify"
     )
 
-    # 写入文件头部
     cat > "$output_file" <<'EOF'
 {
   "servers": [
@@ -619,43 +665,44 @@ function generate_dns_unlock_config() {
     "localhost"
 EOF
 
-    first_entry=true
+    local first_entry=true
 
     while true; do
-        read -rp "请输入一个 DNS 解锁服务器地址（如 54.40.61.210），空回车结束: " address
+        read -p "🌐 DNS 服务器地址 (空回车结束): " address
         [[ -z "$address" ]] && break
 
-        echo "📑 可选 geosite 域（空格分隔编号，支持多选）："
-        for i in $(seq 1 ${#domain_map[@]}); do
-            printf "  %d) %s\n" "$i" "${domain_map[$i]}"
+        echo ""
+        echo "可选域名规则（空格分隔编号）："
+        for i in "${!domain_options[@]}"; do
+            printf "  ${CYAN}%d${NC}) %s\n" "$((i+1))" "${domain_options[$i]}"
         done
+        echo ""
 
-        read -rp "请输入要匹配的域编号: " selected_indices_raw
+        read -p "选择域名 [如: 1 2 3]: " selected_indices
         selected_domains=()
-        for idx in $selected_indices_raw; do
-            domain="${domain_map[$idx]}"
-            if [[ -n "$domain" ]]; then
-                selected_domains+=("\"$domain\"")
+        
+        for idx in $selected_indices; do
+            local array_idx=$((idx - 1))
+            if [[ $array_idx -ge 0 && $array_idx -lt ${#domain_options[@]} ]]; then
+                selected_domains+=("\"${domain_options[$array_idx]}\"")
             fi
         done
 
         if [[ ${#selected_domains[@]} -eq 0 ]]; then
-            echo "⚠️ 没有选择任何有效的域名，跳过该服务器地址"
+            echo -e "${YELLOW}⚠️  未选择域名，跳过${NC}"
             continue
         fi
 
-        domain_json=$(IFS=,; echo "${selected_domains[*]}")
+        local domain_json=$(IFS=,; echo "${selected_domains[*]}")
 
-        # 处理 JSON 逗号：如果是第一个自定义服务器，前面需要逗号
         if $first_entry; then
             first_entry=false
-            comma=","
+            echo "," >> "$output_file"
         else
-            comma=","
+            echo "," >> "$output_file"
         fi
 
         cat >> "$output_file" <<EOF
-${comma}
     {
       "address": "$address",
       "port": 53,
@@ -665,24 +712,27 @@ ${comma}
     }
 EOF
 
-        read -rp "是否继续添加下一个 DNS 解锁服务器地址？(y/n): " confirm
-        [[ "$confirm" != [yY] ]] && break
+        read -p "继续添加? [Y/n]: " confirm
+        # 回车（空输入）、y、Y 都视为继续
+        [[ "$confirm" =~ ^[Nn]$ ]] && break
     done
 
-    # 文件尾部
     cat >> "$output_file" <<'EOF'
   ],
   "tag": "dns_inbound"
 }
 EOF
 
-    echo "✅ DNS 解锁配置已生成：$output_file"
+    echo ""
+    echo -e "${GREEN}✅ DNS 解锁配置已生成: $output_file${NC}"
 }
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 主菜单循环
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 while true; do
     show_menu
-    read -p "请输入操作编号: " choice
+    read -p "请选择操作 [0-13]: " choice
     case $choice in
         1)
             download_and_install
@@ -706,26 +756,33 @@ while true; do
             check_status
             ;;
         8)
-            generate_self_signed_cert
+            view_config
             ;;
         9)
-            generate_route_rules
+            diagnose_connection
             ;;
         10)
+            generate_self_signed_cert
+            ;;
+        11)
+            generate_route_rules
+            ;;
+        12)
             generate_node_config
             ;; 
-        11)
+        13)
             generate_dns_unlock_config
             ;;      
         0)
-            echo -e "${GREEN}退出脚本...${NC}"
+            echo -e "${GREEN}👋 再见！${NC}"
             exit 0
             ;;
         *)
-            echo -e "${YELLOW}无效的选择，请输入 0 到 11 之间的数字。${NC}"
+            echo -e "${RED}❌ 无效选择，请输入 0-13${NC}"
             ;;
     esac
 
+    echo ""
     read -n 1 -s -r -p "按任意键继续..."
     echo ""
 done
