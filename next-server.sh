@@ -841,22 +841,25 @@ EOF
 
 function generate_dns_unlock_config() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}            DNS 解锁配置${NC}"
+    echo -e "${BLUE}            DNS 解锁配置 (域名版)${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
     output_file="/etc/next-server/dns.json"
     mkdir -p /etc/next-server
 
-    local domain_options=(
-        "geosite:category-ai-chat-!cn"
-        "geosite:netflix"
-        "geosite:disney"
-        "geosite:tiktok"
-        "geosite:youtube"
-        "geosite:spotify"
+    # 菜单显示顺序
+    local service_names=(
+        "Netflix"
+        "YouTube"
+        "Disney+"
+        "TikTok"
+        "ChatGPT"
+        "Claude"
+        "Gemini"
     )
 
+    # 初始化 JSON 文件头部
     cat > "$output_file" <<'EOF'
 {
   "servers": [
@@ -872,29 +875,62 @@ EOF
         [[ -z "$address" ]] && break
 
         echo ""
-        echo "可选域名规则（空格分隔编号）："
-        for i in "${!domain_options[@]}"; do
-            printf "  ${CYAN}%d${NC}) %s\n" "$((i+1))" "${domain_options[$i]}"
+        echo "可选解锁服务（空格分隔编号）："
+        for i in "${!service_names[@]}"; do
+            printf "  ${CYAN}%d${NC}) %s\n" "$((i+1))" "${service_names[$i]}"
         done
         echo ""
 
-        read -p "选择域名 [如: 1 2 3]: " selected_indices
-        selected_domains=()
+        read -p "选择服务 [如: 1 5 7]: " selected_indices
         
+        # 临时数组用于存放这一组 DNS 对应的所有域名
+        local temp_domains=()
+
         for idx in $selected_indices; do
-            local array_idx=$((idx - 1))
-            if [[ $array_idx -ge 0 && $array_idx -lt ${#domain_options[@]} ]]; then
-                selected_domains+=("\"${domain_options[$array_idx]}\"")
-            fi
+            case $idx in
+                1) # Netflix
+                    temp_domains+=("netflix.com" "netflix.net" "nflximg.com" "nflximg.net" "nflxvideo.net" "nflxext.com" "nflxso.net")
+                    ;;
+                2) # YouTube
+                    # 包含核心 API 域名，并补充 googlevideo 防止视频无法加载
+                    temp_domains+=("youtube.com" "youtubei.googleapis.com" "googlevideo.com" "youtu.be")
+                    ;;
+                3) # Disney+
+                    temp_domains+=("disney.connections.edge.bamgrid.com" "disney.api.edge.bamgrid.com" "disney-plus.net" "disneyplus.com" "dssott.com" "disneynow.com" "disneystreaming.com" "cdn.registerdisney.go.com")
+                    ;;
+                4) # TikTok
+                    temp_domains+=("byteoversea.com" "ibytedtos.com" "ipstatp.com" "muscdn.com" "musical.ly" "tiktok.com" "tik-tokapi.com" "tiktokcdn.com" "tiktokv.com")
+                    ;;
+                5) # ChatGPT / OpenAI
+                    temp_domains+=("openai.com" "chatgpt.com" "sora.com" "oaistatic.com" "oaiusercontent.com")
+                    ;;
+                6) # Claude
+                    temp_domains+=("anthropic.com" "claude.ai")
+                    ;;
+                7) # Gemini
+                    temp_domains+=("gemini.google.com" "proactivebackend-pa.googleapis.com" "aisandbox-pa.googleapis.com" "robinfrontend-pa.googleapis.com")
+                    ;;
+            esac
         done
 
-        if [[ ${#selected_domains[@]} -eq 0 ]]; then
-            echo -e "${YELLOW}⚠️  未选择域名，跳过${NC}"
+        if [[ ${#temp_domains[@]} -eq 0 ]]; then
+            echo -e "${YELLOW}⚠️  未选择有效服务，跳过此 DNS${NC}"
             continue
         fi
 
-        local domain_json=$(IFS=,; echo "${selected_domains[*]}")
+        # 数据去重 (防止重复选择)
+        IFS=" " read -r -a unique_domains <<< "$(echo "${temp_domains[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')"
 
+        # 格式化 JSON 域名列表: "domain1", "domain2"
+        local formatted_domains=""
+        for ((d=0; d<${#unique_domains[@]}; d++)); do
+            formatted_domains+="\"${unique_domains[$d]}\""
+            if [[ $d -lt $((${#unique_domains[@]} - 1)) ]]; then
+                formatted_domains+=", "
+            fi
+        done
+
+        # 逗号处理
         if $first_entry; then
             first_entry=false
             echo "," >> "$output_file"
@@ -902,21 +938,22 @@ EOF
             echo "," >> "$output_file"
         fi
 
+        # 写入配置块
         cat >> "$output_file" <<EOF
     {
       "address": "$address",
       "port": 53,
       "domains": [
-        $domain_json
+        $formatted_domains
       ]
     }
 EOF
 
-        read -p "继续添加? [Y/n]: " confirm
-        # 回车（空输入）、y、Y 都视为继续
+        read -p "继续添加其他 DNS? [Y/n]: " confirm
         [[ "$confirm" =~ ^[Nn]$ ]] && break
     done
 
+    # 写入 JSON 结尾
     cat >> "$output_file" <<'EOF'
   ],
   "tag": "dns_inbound"
