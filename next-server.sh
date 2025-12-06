@@ -582,11 +582,11 @@ EOF
     cat <<EOF > "$CONFIG_FILE"
 Log:
   Level: warning # Log level: none, error, warning, info, debug 
-  AccessPath: 
-  ErrorPath: 
+  AccessPath: # /etc/next-server/access.Log
+  ErrorPath: # /etc/next-server/error.log
 DnsConfigPath: /etc/next-server/dns.json
 RouteConfigPath: /etc/next-server/route.json
-InboundConfigPath: 
+InboundConfigPath: # /etc/next-server/custom_inbound.json
 OutboundConfigPath: /etc/next-server/custom_outbound.json
 ConnectionConfig:
   Handshake: 4
