@@ -341,49 +341,69 @@ function generate_self_signed_cert() {
     echo -e "  ${CYAN}2${NC}. Let's Encrypt (Cloudflare DNS)"
     echo ""
     read -p "请选择 [1/2, 默认1]: " cert_type_choice
-    
-    sudo mkdir -p /etc/next-server/cert
-    
+    cert_type_choice=${cert_type_choice:-1}   # 默认选择1
+
     if [[ "$cert_type_choice" == "2" ]]; then
         echo -e "${GREEN}━━━ Let's Encrypt 自动申请 ━━━${NC}"
         
         read -p "📌 域名 (如 node1.example.com): " cert_domain
-        [[ -z "$cert_domain" ]] && cert_domain="node1.test.com"
+        cert_domain=${cert_domain:-node1.test.com}
         
         read -p "📧 邮箱: " acme_email
-        [[ -z "$acme_email" ]] && acme_email="acme@example.com"
+        acme_email=${acme_email:-acme@example.com}
         
         read -p "🔑 Cloudflare API Key: " cf_api_key
-        [[ -z "$cf_api_key" ]] && cf_api_key="your_api_key"
-        
-        cat > /etc/next-server/cert/cert_config.yml <<EOF
-CertMode: dns
-CertDomain: "$cert_domain"
-CertFile: /etc/next-server/cert/selfsigned.crt
-KeyFile: /etc/next-server/cert/selfsigned.key
-Provider: cloudflare
-Email: $acme_email
-DNSEnv:
-  CLOUDFLARE_EMAIL: "$acme_email"
-  CLOUDFLARE_API_KEY: "$cf_api_key"
-EOF
-        
-        echo -e "${GREEN}✅ 证书配置已保存${NC}"
-        echo -e "${YELLOW}⚠️  域名需先解析到本机 IP${NC}"
-        
+        cf_api_key=${cf_api_key:-your_api_key}
+
+        # 设置环境变量供 acme.sh 使用
+        export CF_Email="$acme_email"
+        export CF_Key="$cf_api_key"
+
+        # 安装 acme.sh（如果没有）
+        if ! command -v acme.sh &>/dev/null; then
+            echo -e "${YELLOW}acme.sh 未安装，正在安装...${NC}"
+            curl https://get.acme.sh | sh
+            source ~/.bashrc
+        fi
+
+        # 证书路径
+        cert_dir="/etc/letsencrypt/live/$cert_domain"
+        sudo mkdir -p "$cert_dir"
+
+        echo -e "${GREEN}开始申请证书...${NC}"
+        ~/.acme.sh/acme.sh --issue --dns dns_cf -d "$cert_domain" --server letsencrypt --force
+
+        if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}✅ 证书申请成功，正在保存...${NC}"
+            ~/.acme.sh/acme.sh --install-cert -d "$cert_domain" \
+                --key-file       "$cert_dir/privkey.pem" \
+                --fullchain-file "$cert_dir/fullchain.pem"
+
+            echo -e "${GREEN}✅ 证书已保存到 $cert_dir/${NC}"
+            echo -e "  📄 $cert_dir/fullchain.pem"
+            echo -e "  🔑 $cert_dir/privkey.pem"
+
+        else
+            echo -e "${RED}❌ 证书申请失败，请检查域名解析和 Cloudflare API Key${NC}"
+        fi
+
     else
         echo -e "${GREEN}━━━ 生成自签证书 ━━━${NC}"
         
         cert_cn="node1.test.com"
+        cert_dir="/etc/next-server/cert"
+        sudo mkdir -p "$cert_dir"
+        cert_crt="$cert_dir/selfsigned.crt"
+        cert_key="$cert_dir/selfsigned.key"
         
         if sudo openssl req -x509 -nodes -days 365 \
             -newkey rsa:2048 \
-            -keyout /etc/next-server/cert/selfsigned.key \
-            -out /etc/next-server/cert/selfsigned.crt \
-            -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Test/OU=IT/CN=$cert_n"; then
+            -keyout "$cert_key" \
+            -out "$cert_crt" \
+            -subj "/C=CN/ST=Shanghai/L=Shanghai/O=Test/OU=IT/CN=$cert_cn"; then
             echo -e "${GREEN}✅ 证书已生成${NC}"
-            echo -e "  📄 /etc/next-server/cert/selfsigned.crt"
-            echo -e "  🔑 /etc/next-server/cert/selfsigned.key"
+            echo -e "  📄 $cert_crt"
+            echo -e "  🔑 $cert_key"
         else
             echo -e "${RED}❌ 生成失败${NC}"
         fi
