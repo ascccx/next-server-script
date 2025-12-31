@@ -928,7 +928,7 @@ EOF
                     temp_domains+=("anthropic.com" "claude.ai")
                     ;;
                 7) # Gemini
-                    temp_domains+=("gemini.google.com" "proactivebackend-pa.googleapis.com" "aisandbox-pa.googleapis.com" "robinfrontend-pa.googleapis.com")
+                    temp_domains+=(“www.google.com” "gemini.google.com" "proactivebackend-pa.googleapis.com" "aisandbox-pa.googleapis.com" "robinfrontend-pa.googleapis.com")
                     ;;
             esac
         done
