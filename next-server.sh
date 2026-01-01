@@ -828,6 +828,11 @@ function generate_route_rules() {
     },
     {
       "type": "field",
+      "inboundTag": ["shadowsocks2022_0.0.0.0_12345"],
+      "outboundTag": "tw"
+    },
+    {
+      "type": "field",
       "domain": [
         "geosite:speedtest",
         "speed.cloudflare.com",
@@ -846,11 +851,6 @@ function generate_route_rules() {
         "dl.google.com"
       ],
       "outboundTag": "direct"
-    },
-    {
-      "type": "field",
-      "inboundTag": ["shadowsocks2022_0.0.0.0_12345"],
-      "outboundTag": "tw"
     }
   ]
 }
