@@ -860,7 +860,7 @@ EOF
 
 function generate_dns_unlock_config() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}            DNS 解锁配置 (域名版)${NC}"
+    echo -e "${BLUE}            DNS 解锁配置 ${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
@@ -908,26 +908,25 @@ EOF
         for idx in $selected_indices; do
             case $idx in
                 1) # Netflix
-                    temp_domains+=("netflix.com" "netflix.net" "nflximg.com" "nflximg.net" "nflxvideo.net" "nflxext.com" "nflxso.net")
+                    temp_domains+=("geosite:netflix")
                     ;;
                 2) # YouTube
-                    # 包含核心 API 域名，并补充 googlevideo 防止视频无法加载
-                    temp_domains+=("youtube.com" "youtubei.googleapis.com" "googlevideo.com" "youtu.be")
+                    temp_domains+=("geosite:youtube")
                     ;;
                 3) # Disney+
-                    temp_domains+=("disney.connections.edge.bamgrid.com" "disney.api.edge.bamgrid.com" "disney-plus.net" "disneyplus.com" "dssott.com" "disneynow.com" "disneystreaming.com" "cdn.registerdisney.go.com")
+                    temp_domains+=("geosite:disney")
                     ;;
                 4) # TikTok
-                    temp_domains+=("byteoversea.com" "ibytedtos.com" "ipstatp.com" "muscdn.com" "musical.ly" "tiktok.com" "tik-tokapi.com" "tiktokcdn.com" "tiktokv.com")
+                    temp_domains+=("geosite:tiktok")
                     ;;
-                5) # ChatGPT / OpenAI
-                    temp_domains+=("openai.com" "chatgpt.com" "sora.com" "oaistatic.com" "oaiusercontent.com")
+                5) # ChatGPT
+                    temp_domains+=("geosite:openai")
                     ;;
                 6) # Claude
-                    temp_domains+=("anthropic.com" "claude.ai")
+                    temp_domains+=("geosite:anthropic")
                     ;;
                 7) # Gemini
-                    temp_domains+=(“www.google.com” "gemini.google.com" "proactivebackend-pa.googleapis.com" "aisandbox-pa.googleapis.com" "robinfrontend-pa.googleapis.com")
+                    temp_domains+=(“geosite:google-deepmind")
                     ;;
             esac
         done
