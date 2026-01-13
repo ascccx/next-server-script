@@ -926,7 +926,7 @@ EOF
                     temp_domains+=("geosite:anthropic")
                     ;;
                 7) # Gemini
-                    temp_domains+=(“geosite:google-deepmind")
+                    temp_domains+=("geosite:google-deepmind")
                     ;;
             esac
         done
