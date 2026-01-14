@@ -812,7 +812,8 @@ function generate_route_rules() {
         "regexp:(^|\\.)pipigx\\.com",
         "regexp:(^|\\.)ixiaochuan\\.cn",
         "regexp:(^|\\.)duitang\\.com",
-        "regexp:(^|\\.)renren\\.com"
+        "regexp:(^|\\.)renren\\.com",
+        "regexp:(^|\\.)meituan\\.net"
       ]
     },
     {
