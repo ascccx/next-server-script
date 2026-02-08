@@ -613,7 +613,7 @@ ConnectionConfig:
   ConnIdle: 300
   UplinkOnly: 0
   DownlinkOnly: 0
-  BufferSize: 32768
+  BufferSize: 32
 Nodes:
 $all_nodes
 EOF
