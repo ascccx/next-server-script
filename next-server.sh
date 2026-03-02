@@ -609,11 +609,11 @@ RouteConfigPath: /etc/next-server/route.json
 InboundConfigPath: # /etc/next-server/custom_inbound.json
 OutboundConfigPath: /etc/next-server/custom_outbound.json
 ConnectionConfig:
-  Handshake: 1
+  Handshake: 4
   ConnIdle: 300
-  UplinkOnly: 0
-  DownlinkOnly: 0
-  BufferSize: 32
+  UplinkOnly: 2
+  DownlinkOnly: 4
+  BufferSize: 64
 Nodes:
 $all_nodes
 EOF
