@@ -20,10 +20,24 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# 添加别名
-if ! grep -q "alias n=" ~/.bashrc; then
-    echo "alias n='/root/next-server.sh'" >> ~/.bashrc
-    echo "别名 'n' 已添加，请重新登录或执行 'source ~/.bashrc' 以生效。"
+# 添加快捷键 n
+SCRIPT_PATH=$(readlink -f "$0" 2>/dev/null || echo "$0")
+
+# 当前 shell 的别名快捷键
+if ! grep -q "^alias n=" ~/.bashrc; then
+    echo "alias n='bash $SCRIPT_PATH'" >> ~/.bashrc
+    echo "快捷键 'n' 已添加到 ~/.bashrc，请重新登录或执行 'source ~/.bashrc' 以生效。"
+fi
+
+# 全局命令快捷键：直接输入 n 即可运行
+if [ -d "/usr/local/bin" ] && [ ! -e "/usr/local/bin/n" ]; then
+    if ln -s "$SCRIPT_PATH" /usr/local/bin/n 2>/dev/null; then
+        chmod +x "$SCRIPT_PATH" 2>/dev/null
+        echo "全局快捷命令 'n' 已创建。"
+    elif command -v sudo &>/dev/null && sudo ln -s "$SCRIPT_PATH" /usr/local/bin/n 2>/dev/null; then
+        sudo chmod +x "$SCRIPT_PATH" 2>/dev/null
+        echo "全局快捷命令 'n' 已创建。"
+    fi
 fi
 
 # 检查系统架构
@@ -47,24 +61,32 @@ function show_menu() {
     echo -e "${GREEN}NeXT-Server 一键脚本${NC}"
     echo ""
     echo "请选择要执行的操作："
+    echo -e "${YELLOW}【安装管理】${NC}"
     echo -e "${GREEN}1${NC}. 安装 NeXT-Server"
     echo -e "${GREEN}2${NC}. 卸载 NeXT-Server"
     echo "----------------------------"
+    echo -e "${YELLOW}【服务管理】${NC}"
     echo -e "${GREEN}3${NC}. 启动 NeXT-Server"
     echo -e "${GREEN}4${NC}. 停止 NeXT-Server"
     echo -e "${GREEN}5${NC}. 重启 NeXT-Server"
     echo "----------------------------"
+    echo -e "${YELLOW}【查看与诊断】${NC}"
     echo -e "${GREEN}6${NC}. 查看日志"
     echo -e "${GREEN}7${NC}. 查看状态"
     echo -e "${GREEN}8${NC}. 查看配置"
     echo -e "${GREEN}9${NC}. 诊断连接"
     echo "----------------------------"
+    echo -e "${YELLOW}【配置生成】${NC}"
     echo -e "${GREEN}10${NC}. 生成证书"
-    echo "----------------------------"
     echo -e "${GREEN}11${NC}. 生成路由规则"
     echo -e "${GREEN}12${NC}. 生成节点配置"
-    echo "----------------------------"
     echo -e "${GREEN}13${NC}. 生成DNS解锁配置"
+    echo "----------------------------"
+    echo -e "${YELLOW}【节点管理】${NC}"
+    echo -e "${GREEN}14${NC}. 查看节点"
+    echo -e "${GREEN}15${NC}. 添加节点"
+    echo -e "${GREEN}16${NC}. 删除节点"
+    echo -e "${GREEN}17${NC}. 切换节点类型"
     echo "----------------------------"
     echo -e "${GREEN}0${NC}. 退出脚本"
 }
@@ -625,6 +647,426 @@ EOF
     [[ ! "$confirm" =~ ^[Nn]$ ]] && restart_service
 }
 
+
+
+function view_nodes() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            查看节点${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e "${RED}❌ 配置文件不存在: $CONFIG_FILE${NC}"
+        return 1
+    fi
+
+    if ! command -v python3 &>/dev/null; then
+        echo -e "${RED}❌ 未找到 python3${NC}"
+        return 1
+    fi
+
+    python3 - "$CONFIG_FILE" <<'PYVIEW'
+import re, sys
+lines = open(sys.argv[1], encoding='utf-8').read().splitlines()
+blocks = []
+in_nodes = False
+start = None
+for i, line in enumerate(lines):
+    if re.match(r'^Nodes:\s*$', line):
+        in_nodes = True
+        continue
+    if in_nodes and re.match(r'^  -\s+', line):
+        if start is not None:
+            blocks.append(lines[start:i])
+        start = i
+if start is not None:
+    blocks.append(lines[start:])
+
+if not blocks:
+    print('未找到节点配置')
+    sys.exit(0)
+
+for idx, block in enumerate(blocks, 1):
+    data = {'NodeID': '-', 'NodeType': '-'}
+    for line in block:
+        for key in data:
+            m = re.match(r'\s*{}:\s*(.*)\s*$'.format(key), line)
+            if m:
+                data[key] = m.group(1).strip().strip('"\'') or '-'
+    print(f"[{idx}] NodeID: {data['NodeID']} | 类型: {data['NodeType']}")
+PYVIEW
+}
+
+function add_node() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            添加节点${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e "${RED}❌ 配置文件不存在: $CONFIG_FILE${NC}"
+        echo -e "${YELLOW}请先使用菜单 12 生成节点配置。${NC}"
+        return 1
+    fi
+
+    read -p "📡 面板地址 (ApiHost): " api_host
+    [[ -z "$api_host" ]] && { echo -e "${RED}❌ ApiHost 不能为空${NC}"; return 1; }
+    read -p "🔑 API密钥 (ApiKey): " api_key
+    [[ -z "$api_key" ]] && { echo -e "${RED}❌ ApiKey 不能为空${NC}"; return 1; }
+    read -p "🆔 节点ID (NodeID): " node_id
+    [[ -z "$node_id" ]] && { echo -e "${RED}❌ NodeID 不能为空${NC}"; return 1; }
+
+    if grep -Eq "^[[:space:]]*NodeID:[[:space:]]*\"?$node_id\"?[[:space:]]*$" "$CONFIG_FILE"; then
+        echo -e "${RED}❌ NodeID=$node_id 已存在，请勿重复添加${NC}"
+        return 1
+    fi
+
+    echo ""
+    echo "节点类型："
+    echo -e "  ${CYAN}1${NC}. shadowsocks2022 (无需证书)"
+    echo -e "  ${CYAN}2${NC}. trojan (需要证书)"
+    echo -e "  ${CYAN}3${NC}. vmess (需要证书)"
+    read -p "选择 [1-3, 默认1]: " node_choice
+
+    case $node_choice in
+        2) node_type="trojan" ;;
+        3) node_type="vmess" ;;
+        *) node_type="shadowsocks2022" ;;
+    esac
+
+    local cert_config="      # shadowsocks2022 无需证书配置"
+    if [[ "$node_type" == "trojan" || "$node_type" == "vmess" ]]; then
+        echo ""
+        echo -e "${YELLOW}━━━ TLS 证书配置 ━━━${NC}"
+        echo -e "  ${CYAN}1${NC}. file (使用已有证书)"
+        echo -e "  ${CYAN}2${NC}. dns (自动申请 Let's Encrypt)"
+        read -p "证书模式 [1/2, 默认1]: " cert_mode_choice
+
+        local cert_mode="file"
+        local cert_domain="node1.test.com"
+        local cert_file="/etc/next-server/cert/selfsigned.crt"
+        local key_file="/etc/next-server/cert/selfsigned.key"
+        local cert_provider="cloudflare"
+        local acme_email="acme@example.com"
+        local dnsenv_config=""
+
+        if [[ "$cert_mode_choice" == "2" ]]; then
+            cert_mode="dns"
+            read -p "📌 证书域名: " cert_domain
+            [[ -z "$cert_domain" ]] && cert_domain="node1.test.com"
+            read -p "📧 邮箱: " acme_email
+            [[ -z "$acme_email" ]] && acme_email="acme@example.com"
+            read -p "🔑 Cloudflare API Key: " cf_api_key
+            [[ -z "$cf_api_key" ]] && cf_api_key="your_api_key"
+            dnsenv_config="        DNSEnv:
+          CLOUDFLARE_EMAIL: \"$acme_email\"
+          CLOUDFLARE_API_KEY: \"$cf_api_key\""
+        fi
+
+        cert_config="      CertConfig:
+        CertMode: $cert_mode
+        CertDomain: \"$cert_domain\"
+        CertFile: $cert_file
+        KeyFile: $key_file
+        Provider: $cert_provider
+        Email: $acme_email
+$dnsenv_config"
+    fi
+
+    node_yaml=$(cat <<EOF
+  - PanelType: "sspanel-old"
+    ApiConfig:
+      ApiHost: "$api_host"
+      ApiKey: "$api_key"
+      NodeID: $node_id
+      NodeType: $node_type
+      Timeout: 30
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+$cert_config
+      EnableDNS: true
+      DNSType: UseIP
+      DisableUploadTraffic: false
+      DisableGetRule: false
+      EnableProxyProtocol: false
+      DisableIVCheck: false
+      DisableSniffing: false
+EOF
+)
+
+    cp "$CONFIG_FILE" "$CONFIG_FILE.bak.$(date +%s)"
+    if grep -Eq '^Nodes:[[:space:]]*$' "$CONFIG_FILE"; then
+        printf '%s\n' "$node_yaml" >> "$CONFIG_FILE"
+    else
+        {
+            echo ""
+            echo "Nodes:"
+            printf '%s\n' "$node_yaml"
+        } >> "$CONFIG_FILE"
+    fi
+
+    echo -e "${GREEN}✅ 已添加 NodeID=$node_id ($node_type)${NC}"
+    echo -e "${YELLOW}已自动备份原配置为 $CONFIG_FILE.bak.*${NC}"
+    read -p "立即重启服务使配置生效? [Y/n]: " confirm
+    [[ ! "$confirm" =~ ^[Nn]$ ]] && restart_service
+}
+
+function delete_node() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            删除节点${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e "${RED}❌ 配置文件不存在: $CONFIG_FILE${NC}"
+        return 1
+    fi
+
+    view_nodes
+    echo ""
+    read -p "请输入要删除的节点ID (NodeID): " delete_node_id
+    [[ -z "$delete_node_id" ]] && { echo -e "${RED}❌ NodeID 不能为空${NC}"; return 1; }
+    read -p "⚠️  确定删除 NodeID=$delete_node_id ? [y/N]: " confirm_delete
+    [[ ! "$confirm_delete" =~ ^[Yy]$ ]] && { echo -e "${YELLOW}已取消${NC}"; return 0; }
+
+    tmp_file=$(mktemp)
+    if DELETE_NODE_ID="$delete_node_id" python3 - "$CONFIG_FILE" > "$tmp_file" <<'PYDEL'
+import os, re, sys
+path = sys.argv[1]
+target_id = os.environ['DELETE_NODE_ID']
+lines = open(path, encoding='utf-8').read().splitlines()
+blocks = []
+in_nodes = False
+start = None
+for i, line in enumerate(lines):
+    if re.match(r'^Nodes:\s*$', line):
+        in_nodes = True
+        continue
+    if in_nodes and re.match(r'^  -\s+', line):
+        if start is not None:
+            blocks.append((start, i))
+        start = i
+if start is not None:
+    blocks.append((start, len(lines)))
+
+out = lines[:]
+matched = False
+for start, end in reversed(blocks):
+    block = out[start:end]
+    has_id = any(re.match(r'\s*NodeID:\s*"?{}"?\s*$'.format(re.escape(target_id)), l) for l in block)
+    if has_id:
+        matched = True
+        del out[start:end]
+
+if not matched:
+    print(f'未找到 NodeID={target_id}', file=sys.stderr)
+    sys.exit(2)
+print('\n'.join(out) + '\n', end='')
+PYDEL
+    then
+        cp "$CONFIG_FILE" "$CONFIG_FILE.bak.$(date +%s)"
+        cat "$tmp_file" > "$CONFIG_FILE"
+        rm -f "$tmp_file"
+        echo -e "${GREEN}✅ 已删除 NodeID=$delete_node_id${NC}"
+        echo -e "${YELLOW}已自动备份原配置为 $CONFIG_FILE.bak.*${NC}"
+    else
+        rm -f "$tmp_file"
+        echo -e "${RED}❌ 删除失败，可能是未找到该 NodeID${NC}"
+        return 1
+    fi
+
+    read -p "立即重启服务使配置生效? [Y/n]: " confirm
+    [[ ! "$confirm" =~ ^[Nn]$ ]] && restart_service
+}
+
+function switch_node_type() {
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}            切换节点类型${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e "${RED}❌ 配置文件不存在: $CONFIG_FILE${NC}"
+        echo -e "${YELLOW}请先使用菜单 12 生成节点配置。${NC}"
+        return 1
+    fi
+
+    if ! command -v python3 &>/dev/null; then
+        echo -e "${RED}❌ 未找到 python3，无法安全修改 YAML 配置${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}当前节点：${NC}"
+    python3 - "$CONFIG_FILE" <<'PYLIST'
+import re, sys
+text = open(sys.argv[1], encoding='utf-8').read().splitlines()
+node_id = None
+found = False
+for line in text:
+    m = re.match(r'\s*NodeID:\s*(\S+)', line)
+    if m:
+        node_id = m.group(1).strip('"\'')
+    m = re.match(r'\s*NodeType:\s*(\S+)', line)
+    if m:
+        node_type = m.group(1).strip('"\'')
+        if node_id:
+            print(f"  - NodeID: {node_id}    NodeType: {node_type}")
+            found = True
+            node_id = None
+if not found:
+    print("  未在配置中找到节点")
+PYLIST
+    echo ""
+
+    read -p "请输入要切换的节点ID (NodeID): " switch_node_id
+    [[ -z "$switch_node_id" ]] && { echo -e "${RED}❌ NodeID 不能为空${NC}"; return 1; }
+
+    echo ""
+    echo "请选择新的节点类型："
+    echo -e "  ${CYAN}1${NC}. shadowsocks2022 (无需证书)"
+    echo -e "  ${CYAN}2${NC}. trojan (需要证书)"
+    echo -e "  ${CYAN}3${NC}. vmess (需要证书)"
+    read -p "选择 [1-3, 默认1]: " switch_type_choice
+
+    case $switch_type_choice in
+        2) switch_node_type="trojan" ;;
+        3) switch_node_type="vmess" ;;
+        *) switch_node_type="shadowsocks2022" ;;
+    esac
+
+    switch_cert_config="      # shadowsocks2022 无需证书配置"
+    if [[ "$switch_node_type" == "trojan" || "$switch_node_type" == "vmess" ]]; then
+        echo ""
+        echo -e "${YELLOW}━━━ TLS 证书配置 ━━━${NC}"
+        echo -e "  ${CYAN}1${NC}. file (使用已有证书)"
+        echo -e "  ${CYAN}2${NC}. dns (自动申请 Let's Encrypt)"
+        read -p "证书模式 [1/2, 默认1]: " switch_cert_mode_choice
+
+        switch_cert_mode="file"
+        switch_cert_domain="node1.test.com"
+        switch_cert_file="/etc/next-server/cert/selfsigned.crt"
+        switch_key_file="/etc/next-server/cert/selfsigned.key"
+        switch_cert_provider="cloudflare"
+        switch_acme_email="acme@example.com"
+        switch_dnsenv_config=""
+
+        if [[ "$switch_cert_mode_choice" == "2" ]]; then
+            switch_cert_mode="dns"
+            read -p "📌 证书域名: " switch_cert_domain
+            [[ -z "$switch_cert_domain" ]] && switch_cert_domain="node1.test.com"
+            read -p "📧 邮箱: " switch_acme_email
+            [[ -z "$switch_acme_email" ]] && switch_acme_email="acme@example.com"
+            read -p "🔑 Cloudflare API Key: " switch_cf_api_key
+            [[ -z "$switch_cf_api_key" ]] && switch_cf_api_key="your_api_key"
+            switch_dnsenv_config="        DNSEnv:
+          CLOUDFLARE_EMAIL: \"$switch_acme_email\"
+          CLOUDFLARE_API_KEY: \"$switch_cf_api_key\""
+        fi
+
+        switch_cert_config="      CertConfig:
+        CertMode: $switch_cert_mode
+        CertDomain: \"$switch_cert_domain\"
+        CertFile: $switch_cert_file
+        KeyFile: $switch_key_file
+        Provider: $switch_cert_provider
+        Email: $switch_acme_email
+$switch_dnsenv_config"
+    fi
+
+    tmp_file=$(mktemp)
+    if SWITCH_NODE_ID="$switch_node_id" SWITCH_NODE_TYPE="$switch_node_type" SWITCH_CERT_CONFIG="$switch_cert_config" python3 - "$CONFIG_FILE" > "$tmp_file" <<'PYEDIT'
+import os, re, sys
+path = sys.argv[1]
+target_id = os.environ['SWITCH_NODE_ID']
+new_type = os.environ['SWITCH_NODE_TYPE']
+cert_config = os.environ['SWITCH_CERT_CONFIG'].splitlines()
+lines = open(path, encoding='utf-8').read().splitlines()
+blocks = []
+in_nodes = False
+start = None
+for i, line in enumerate(lines):
+    if re.match(r'^Nodes:\s*$', line):
+        in_nodes = True
+        continue
+    if in_nodes and re.match(r'^  -\s+', line):
+        if start is not None:
+            blocks.append((start, i))
+        start = i
+if start is not None:
+    blocks.append((start, len(lines)))
+matched = False
+out = lines[:]
+for start, end in reversed(blocks):
+    block = out[start:end]
+    has_id = any(re.match(r'\s*NodeID:\s*"?{}"?\s*$'.format(re.escape(target_id)), l) for l in block)
+    if not has_id:
+        continue
+    matched = True
+    for idx, line in enumerate(block):
+        if re.match(r'\s*NodeType:\s*', line):
+            indent = re.match(r'^(\s*)', line).group(1)
+            block[idx] = f'{indent}NodeType: {new_type}'
+            break
+    else:
+        for idx, line in enumerate(block):
+            if re.match(r'\s*NodeID:\s*', line):
+                indent = re.match(r'^(\s*)', line).group(1)
+                block.insert(idx + 1, f'{indent}NodeType: {new_type}')
+                break
+    cleaned = []
+    skip = False
+    for line in block:
+        if re.match(r'^      CertConfig:\s*$', line):
+            skip = True
+            continue
+        if skip:
+            if re.match(r'^      \S', line):
+                skip = False
+            else:
+                continue
+        if 'shadowsocks2022 无需证书配置' in line:
+            continue
+        cleaned.append(line)
+    block = cleaned
+    insert_at = None
+    for idx, line in enumerate(block):
+        if re.match(r'\s*UpdatePeriodic:\s*', line):
+            insert_at = idx + 1
+            break
+    if insert_at is None:
+        for idx, line in enumerate(block):
+            if re.match(r'\s*ControllerConfig:\s*', line):
+                insert_at = idx + 1
+                break
+    if insert_at is None:
+        insert_at = len(block)
+    block[insert_at:insert_at] = cert_config
+    out[start:end] = block
+if not matched:
+    print(f'未找到 NodeID={target_id}', file=sys.stderr)
+    sys.exit(2)
+print('\n'.join(out) + '\n', end='')
+PYEDIT
+    then
+        cp "$CONFIG_FILE" "$CONFIG_FILE.bak.$(date +%s)"
+        cat "$tmp_file" > "$CONFIG_FILE"
+        rm -f "$tmp_file"
+        echo -e "${GREEN}✅ 已将 NodeID=$switch_node_id 切换为 $switch_node_type${NC}"
+        echo -e "${YELLOW}已自动备份原配置为 $CONFIG_FILE.bak.*${NC}"
+    else
+        rm -f "$tmp_file"
+        echo -e "${RED}❌ 修改配置失败，可能是未找到该 NodeID${NC}"
+        return 1
+    fi
+
+    read -p "立即重启服务使配置生效? [Y/n]: " confirm
+    [[ ! "$confirm" =~ ^[Nn]$ ]] && restart_service
+}
+
 function generate_route_rules() {
     echo -e "${BLUE}正在生成路由规则...${NC}"
     mkdir -p "$INSTALL_DIR"
@@ -988,7 +1430,7 @@ EOF
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 while true; do
     show_menu
-    read -p "请选择操作 [0-13]: " choice
+    read -p "请选择操作 [0-17]: " choice
     case $choice in
         1)
             download_and_install
@@ -1028,13 +1470,25 @@ while true; do
             ;; 
         13)
             generate_dns_unlock_config
+            ;;
+        14)
+            view_nodes
+            ;;
+        15)
+            add_node
+            ;;
+        16)
+            delete_node
+            ;;
+        17)
+            switch_node_type
             ;;      
         0)
             echo -e "${GREEN}👋 再见！${NC}"
             exit 0
             ;;
         *)
-            echo -e "${RED}❌ 无效选择，请输入 0-13${NC}"
+            echo -e "${RED}❌ 无效选择，请输入 0-17${NC}"
             ;;
     esac
 
