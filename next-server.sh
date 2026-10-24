@@ -43,9 +43,9 @@ fi
 # 检查系统架构
 ARCH=$(uname -m)
 if [[ "$ARCH" == "x86_64" ]]; then
-    DOWNLOAD_URL="https://github.com/The-NeXT-Project/NeXT-Server/releases/latest/download/next-server-linux-amd64.zip"
+    DOWNLOAD_URL="https://github.com/ascccx/NeXT-Server-Xray/releases/download/0.3.21/next-server-linux-amd64.zip"
 elif [[ "$ARCH" == "aarch64" ]]; then
-    DOWNLOAD_URL="https://github.com/The-NeXT-Project/NeXT-Server/releases/latest/download/next-server-linux-arm64.zip"
+    DOWNLOAD_URL="https://github.com/ascccx/NeXT-Server-Xray/releases/download/0.3.20/next-server-linux-arm64.zip"
 else
     echo -e "${YELLOW}警告：当前系统架构为 $ARCH，不支持安装 NeXT-Server。${NC}"
     exit 1
